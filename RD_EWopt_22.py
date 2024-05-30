@@ -35,7 +35,7 @@ from scipy.integrate import odeint
 # ------------------------------------------------
 ## Grid density
 # ------------------------------------------------
-GRID_DENSITY =  6 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
+GRID_DENSITY =  8 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
 
 # If needed, fine-tune for side-to-side potential-harmonic plots
 GRID_DENSITY_POTENTIAL =  GRID_DENSITY # Number of trajectories = square of this number; 9 is cool because grid coincides with contours intersections, but it's a bit too dense
@@ -48,15 +48,17 @@ GRID_DENSITY_HARMONIC = GRID_DENSITY  # Number of trajectories = square of this 
 PLAYER_1_COLOR = 'navy'
 PLAYER_2_COLOR = 'black'
 
-REPLICATOR_COLOR = 'black'
+REPLICATOR_COLOR = 'navy'
 PAYFIELD_COLOR = 'black'
 
-VANILLA_COLOR = 'darkorange'
-EXTRA_COLOR = 'navy'
+VANILLA_COLOR = 'navy'
+EXTRA_COLOR = 'darkorange'
 
 EUCLIDEAN_COLOR = 'crimson'
 
 POTENTIAL_FUNCTION_COLOR = 'red'
+
+INTERIOR_NE_COLOR = 'crimson'
 
 RD_LINEWIDTH = 0.7
 ED_LINEWIDTH = 0.7
@@ -80,16 +82,16 @@ INCLUDE_LEGEND = True
 # ------------------------------------------------
 PLOT_CONTOURS = True # Global contours switch
 
-PLOT_CONTOURS_FIRST_PLAYER = False
-PLOT_CONTOURS_SECOND_PLAYER = True
+PLOT_CONTOURS_FIRST_PLAYER = True
+PLOT_CONTOURS_SECOND_PLAYER = False
 
-PLOT_CONTOURS_POTENTIAL_FUNCTION = True
+PLOT_CONTOURS_POTENTIAL_FUNCTION = False
 
 PLOT_FILLED_CONTOURS_FIRST_PLAYER = True
-DISPLAY_PAYOFF_CONTOURS_VALUES = True # tag each contour line with corresponding value
+DISPLAY_PAYOFF_CONTOURS_VALUES = False # tag each contour line with corresponding value
 
 CONTOURS_DENSITY = 15 # number of contours lines
-FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels
+FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels, higher = smoother shades transition
 
 # ------------------------------------------------
 ## Quivers
@@ -120,7 +122,7 @@ CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solv
 # ------------------------------------------------
 
 # entropic
-PLOT_ENTROPIC_VANILLA_FTRL = True
+PLOT_ENTROPIC_VANILLA_FTRL = False
 PLOT_EXTRA_FTRL = True
 
 # euclidean
@@ -128,6 +130,12 @@ PLOT_EUCLIDEAN_VANILLA_FTRL = False
 
 TIMESTEPS_EXTRA_FTRL = 25000
 TIMESTEPS_VANILLA_FTRL = 2000
+
+
+# ------------------------------------------------
+## Nash equilibria
+# ------------------------------------------------
+PLOT_INTERIOR_NE = True
 
 
 
@@ -172,6 +180,16 @@ class Game22():
         '''
         self.u_pure = { i : np.array(self.payoff[ (i-1)*4 : i*4 ]).reshape(2,2) for i in self.players  }
 
+        # --------------------------------------------------------------------
+        # coefficients of reduced payoff field, key
+        # --------------------------------------------------------------------
+        self.v1_lin_coeff =  ( + self.u_pure[1][0][0] + self.u_pure[1][1][1] - self.u_pure[1][1][0]  - self.u_pure[1][0][1]  )
+        self.v1_aff_coeff =  ( - self.u_pure[1][0][0]                        + self.u_pure[1][1][0]                          )
+        self.v2_lin_coeff = ( + self.u_pure[2][0][0] + self.u_pure[2][1][1] - self.u_pure[2][1][0]  - self.u_pure[2][0][1]  )
+        self.v2_aff_coeff = ( - self.u_pure[2][0][0]                                                + self.u_pure[2][0][1]  )
+        # --------------------------------------------------------------------
+        self.interior_ne = self.find_fully_mixed_NE()
+
         self.strategies_labels = strategies_labels
 
         # Potential matrix
@@ -206,23 +224,25 @@ class Game22():
     # --------------------------------------------------------------------
     def v1(self, r1, r2):
         '''Reduced payoff field of player 1. Here r1 = x11, r2 = x21 denote reduced variables from x = ( (x10, x11), (x20, x21) )
-        Note that v1 does not depend on r1
+        Note that v1 does not depend on r1: affine function
+
+        v1(r1, r2) = a r2 + b
+
         Used to build continuous time dynamcis via sharp of reduced metric.
         Takes as input two scalars and returns one scalar.'''
 
-        first_order =   1 * r2 *    ( + self.u_pure[1][0][0] + self.u_pure[1][1][1] - self.u_pure[1][1][0]  - self.u_pure[1][0][1]  )
-        zeroth_order =  1 *         ( - self.u_pure[1][0][0]                        + self.u_pure[1][1][0]                          )
-        return first_order + zeroth_order
+        return self.v1_lin_coeff * r2 + self.v1_aff_coeff
 
     def v2(self, r1, r2):
         '''Reduced payoff field of player 2. Here r1 = x11, r2 = x21 denote reduced variables from x = ( (x10, x11), (x20, x21) )
-        Note that v2 does not depend on r2
+        Note that v2 does not depend on r2: affine function
+
+        v2(r1, r2) = a r1 + b
+
         Used to build continuous time dynamcis via sharp of reduced metric.
         Takes as input two scalars and returns one scalar.'''
-
-        first_order =   r1 * 1 *    ( + self.u_pure[2][0][0] + self.u_pure[2][1][1] - self.u_pure[2][1][0]  - self.u_pure[2][0][1]  )
-        zeroth_order = 1 *          ( - self.u_pure[2][0][0]                                                + self.u_pure[2][0][1]  )
-        return first_order + zeroth_order
+         
+        return self.v2_lin_coeff * r1 + self.v2_aff_coeff
 
 
     def payfield(self, r1, r2):
@@ -407,6 +427,48 @@ class Game22():
 
         return x1, x2
 
+    # ------------------------------------------------
+    ## NE finder
+    # ------------------------------------------------
+
+    def find_fully_mixed_NE(self):
+
+        '''
+        For interior NE to exist it must be slope, so must solve linear system for reduced payoff; two equations, two unknowns:
+
+        v1(r1, r2) = 0
+        v2(r1, r2) = 0
+
+        v1(r1, r2) = a r2 + b = 0
+        v2(r1, r2) = c r1 + d = 0
+
+        r1 = - d/c
+        r2 = - b/a
+
+        The coefficients a, b, c, d depend on payoff bimatrix and are given in the definitions of v1 and v2
+
+        '''
+
+        a = self.v1_lin_coeff
+        b = self.v1_aff_coeff
+        c = self.v2_lin_coeff
+        d = self.v2_aff_coeff
+
+        ne_matrix = np.array( [ [0, a], [c, 0] ] )
+        ne_affine_terms = np.array( [-b, -d] )
+
+        try:
+            ne = np.linalg.solve(ne_matrix, ne_affine_terms)
+            print(f'Fully mixed NE: {ne}')
+            return ne
+        except:
+            print ("No interior NE")
+            return None
+        
+
+        
+
+
     # --------------------------------------------------------------------
     ## Begin plotting methods
     # --------------------------------------------------------------------
@@ -554,7 +616,7 @@ class Game22():
 
             # pick an initial point
             initial_point = np.array([ y1[1], y2[3] ])
-            print(f'Initial point of discrete methods: {initial_point}')
+            print(f'Initial point of extra ftrl: {initial_point}')
             plt.scatter(*initial_point, color = 'black')
             EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, 0.02 )
             nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
@@ -565,6 +627,9 @@ class Game22():
 
         # vanilla entropic ftrl
         if PLOT_ENTROPIC_VANILLA_FTRL:
+            initial_point = np.array([ y1[1], y2[3] ])
+            print(f'Initial point of entropic vanilla ftrl: {initial_point}')
+            plt.scatter(*initial_point, color = 'black')
             vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, 0.02 )
             plt.plot(*vanilla_entropic_ftrl_trajectory, color = VANILLA_COLOR, linewidth = 0.7, label = VANILLA_LABEL + ENTROPIC_LABEL)
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = VANILLA_COLOR, label = VANILLA_LABEL  + ENTROPIC_LABEL)]  )
@@ -574,6 +639,8 @@ class Game22():
         if PLOT_EUCLIDEAN_VANILLA_FTRL:
             # pick an initial point
             initial_point = np.array([ y1[1], 1-y1[1], y2[3], 1-y2[3] ])
+            print(f'Initial point of euclidean vanilla ftrl: {initial_point}')
+            plt.scatter(*initial_point, color = 'black')
             print(initial_point)
             plt.scatter(initial_point[0], initial_point[2], color = 'black')
             EUCLIDEAN_MIRROR_DESCENT = self.vanilla_euclidean_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, 0.01 )
@@ -624,9 +691,16 @@ class Game22():
         return  legend_elements
 
     def full_plot(self,ax):
-        
 
         legend_elements = []
+
+        if PLOT_INTERIOR_NE:
+            try:
+                plt.scatter(self.interior_ne[0], self.interior_ne[1], color = INTERIOR_NE_COLOR, zorder=10) # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
+                legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = INTERIOR_NE_COLOR, label = 'Interior NE', linestyle = '', marker = 'o' )] )
+
+            except:
+                pass
 
         if PLOT_CONTOURS:
             legend_elements.extend(self.contour_plot(ax))
@@ -759,9 +833,9 @@ class Game22():
 
 ##################################################################################################
 
-################ PLOT ################
-# fig, axs = plt.subplots(1, 2, figsize=(10, 4))#, dpi = 2400)
-fig, axs = plt.subplots(1, 1, figsize=(10, 4))#, dpi = 2400)
+# --------------------------------------------------------
+## Bestiario di giochi
+# --------------------------------------------------------
 
 ################ RANDOM, COOL ################
 # payoff_potental = [-17, -4, -7, 4, -8, 7, -8, 5]
@@ -804,13 +878,13 @@ fig, axs = plt.subplots(1, 1, figsize=(10, 4))#, dpi = 2400)
 # G_rd_2.full_plot(axs[1])
 ###############################################
 
-################ Bestiario di giochi ################
+# Bestiario di giochi
 
 # generalized harmonic
 # payoff = [-1, -4, -3, -1, 1, 2, 2, -2] 
 
 # mathing pennies
-payoff = [3, -3, -3, 3, -3, 3, 3, -3]
+# payoff = [3, -3, -3, 3, -3, 3, 3, -3]
 
 # prisoner's dilemma
 # payoff = [2, 0, 3, 1, 2, 3, 0, 1]
@@ -822,7 +896,7 @@ payoff = [3, -3, -3, 3, -3, 3, 3, -3]
 # payoff = [3, 0, 0, 2, 2, 0, 0, 3]
 
 # chicken
-# payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
+payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
 
 # --------------------------------
 # https://arxiv.org/pdf/1701.09043
@@ -841,28 +915,29 @@ payoff = [3, -3, -3, 3, -3, 3, 3, -3]
 # payoff = [1, 3, 0, 2, 1, 0, 3, 2]
 ###############################################
 
+
+# --------------------------------------------------------
+## Game instance
+# --------------------------------------------------------
 G = Game22(payoff, 'sha', game_type = '',  game_name = '', pure_potential_function = [0, 1, 1, 2], strategies_labels = [ ['C', 'D'], ['c', 'd'] ] )
+
+# --------------------------------------------------------
+## Plot
+# --------------------------------------------------------
+# fig, axs = plt.subplots(1, 2, figsize=(10, 4))#, dpi = 2400)
+fig, axs = plt.subplots(1, 1, figsize=(10, 4))#, dpi = 2400)
 G.full_plot(axs)
 ###############################################
 
 
-
-
-# plt.gca().set_axis_off()
-# plt.margins(10,10)
-# plt.gca().xaxis.set_major_locator(plt.NullLocator())
-# plt.gca().yaxis.set_major_locator(plt.NullLocator())
-# plt.savefig("filename.pdf", bbox_inches = 'tight', pad_inches = 0)
-# plt.tight_layout()
-# plt.bbox_inches='tight'
-
-
-#################### SAVE FIGURE ####################
+# --------------------------------------------------------
+## Save methods
+# --------------------------------------------------------
 # plt.savefig(f'./Results/Bestiario/{G.game_name}.pdf', bbox_inches='tight', pad_inches = 0)
 
 #####################################################
 
-# plt.axis('equal') 
+
 plt.show()
 
 
