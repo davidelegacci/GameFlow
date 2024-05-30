@@ -4,6 +4,8 @@ WHAT IT DOES
 2x2 game
 
 - draw contours (curves and filled) of payoff function and, if given, potential function
+- draws response graph
+- computes interior NE
 - plots dynamics and algorithms. Currently implemented:
 
 1. Continuous time FTRL with entropic regularizer (replicator dynamics)
@@ -58,7 +60,8 @@ EUCLIDEAN_COLOR = 'crimson'
 
 POTENTIAL_FUNCTION_COLOR = 'red'
 
-INTERIOR_NE_COLOR = 'crimson'
+NE_COLOR = 'crimson'
+
 
 RD_LINEWIDTH = 0.7
 ED_LINEWIDTH = 0.7
@@ -135,7 +138,13 @@ TIMESTEPS_VANILLA_FTRL = 2000
 # ------------------------------------------------
 ## Nash equilibria
 # ------------------------------------------------
-PLOT_INTERIOR_NE = True
+PLOT_NE = True
+
+
+# ------------------------------------------------
+## Response graph
+# ------------------------------------------------
+ANNOTE_DEVIATION_VALUE = False # True to write on edges value of unilateral deviations
 
 
 
@@ -694,10 +703,10 @@ class Game22():
 
         legend_elements = []
 
-        if PLOT_INTERIOR_NE:
+        if PLOT_NE:
             try:
-                plt.scatter(self.interior_ne[0], self.interior_ne[1], color = INTERIOR_NE_COLOR, zorder=10) # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
-                legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = INTERIOR_NE_COLOR, label = 'Interior NE', linestyle = '', marker = 'o' )] )
+                plt.scatter(self.interior_ne[0], self.interior_ne[1], color = NE_COLOR, zorder=10) # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
+                legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = NE_COLOR, label = 'NE', linestyle = '', marker = 'o' )] )
 
             except:
                 pass
@@ -772,49 +781,71 @@ class Game22():
         ## Orient edges
         # -------------------------------------------------------------------------
 
-        # True to write on plot value of unilateral deviations
-        annote_deviation_value = False
+        # Count # of incoming flows to find pure NE
+
+        n_in_top_right_strict = 0
+        n_in_top_left_strict = 0
+        n_in_bottom_right_strict = 0
+        n_in_bottom_left_strict = 0
+
+        n_in_top_right_loose = 0
+        n_in_top_left_loose = 0
+        n_in_bottom_right_loose = 0
+        n_in_bottom_left_loose = 0
+
         # -------------------------------------------------------------------------
         # Bottom border
         deviation = self.u_pure[1][1][0] - self.u_pure[1][0][0]
         if deviation > 0:
+            n_in_bottom_right_strict += 1
             arr = "->"
         elif deviation < 0:
+            n_in_bottom_left_strict += 1
             arr = "<-"
         else:
+            n_in_bottom_right_loose += 1
+            n_in_bottom_left_loose += 1
             arr = "<->"
         # arrow
         plt.annotate('', xy=(x_max, y_min), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr, lw=2))
         # deviation value
-        if annote_deviation_value: plt.text(x_max / 2, y_min, abs(deviation), color = 'red', fontsize = 15)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_min, abs(deviation), color = 'red', fontsize = 15)
 
         # -------------------------------------------------------------------------
         # Top border
         deviation = self.u_pure[1][1][1] - self.u_pure[1][0][1]
         if deviation > 0:
+            n_in_top_right_strict += 1
             arr = "->"
         elif deviation < 0:
+            n_in_top_left_strict += 1
             arr = "<-"
         else:
+            n_in_top_right_loose += 1
+            n_in_top_left_loose += 1
             arr = "<->"
         # arrow
         plt.annotate('', xy=(x_max, y_max), xytext=(x_min, y_max),arrowprops=dict(arrowstyle = arr, lw=2))
         # deviation value
-        if annote_deviation_value: plt.text(x_max / 2, y_max - shift, abs(deviation), color = 'red', fontsize = 15)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_max - shift, abs(deviation), color = 'red', fontsize = 15)
 
         # -------------------------------------------------------------------------
         # Right border
         deviation = self.u_pure[2][1][1] - self.u_pure[2][1][0]
         if deviation > 0:
             arr = "->"
+            n_in_top_right_strict += 1
         elif deviation < 0:
+            n_in_bottom_right_strict += 1
             arr = "<-"
         else:
+            n_in_top_right_loose += 1
+            n_in_bottom_right_loose += 1
             arr = "<->"
         # arrow
         plt.annotate('', xy=(x_max, y_max), xytext=(x_max, y_min),arrowprops=dict(arrowstyle = arr, lw=2))
         # deviation value
-        if annote_deviation_value: plt.text(x_max , y_max / 2, abs(deviation), color = 'red', fontsize = 15)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max , y_max / 2, abs(deviation), color = 'red', fontsize = 15)
 
 
         # -------------------------------------------------------------------------
@@ -822,14 +853,58 @@ class Game22():
         deviation = self.u_pure[2][0][1] - self.u_pure[2][0][0]
         if deviation > 0:
             arr = "->"
+            n_in_top_left_strict += 1
         elif deviation < 0:
+            n_in_bottom_left_strict += 1
             arr = "<-"
         else:
+            n_in_top_left_loose += 1
+            n_in_bottom_left_loose += 1
             arr = "<->"
         # arrow
         plt.annotate('', xy=(x_min, y_max), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr, lw=2))
         # deviation value
-        if annote_deviation_value: plt.text(x_min - shift, y_max / 2, abs(deviation), color = 'red', fontsize = 15)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_min - shift, y_max / 2, abs(deviation), color = 'red', fontsize = 15)
+
+
+        # -------------------------------------------------------------------------
+        ## Pure NE
+        # -------------------------------------------------------------------------
+
+        # number of strictly incoming flows per vertex
+        n_in_strict = np.array([ n_in_bottom_left_strict, n_in_top_left_strict, n_in_top_right_strict, n_in_bottom_right_strict ])
+
+        # number of loosely incoming flows per vertex
+        n_in_loose = np.array([ n_in_bottom_left_loose, n_in_top_left_loose, n_in_top_right_loose, n_in_bottom_right_loose ])
+
+        # number of incoming flows per vertex (either strict or loose)
+        n_in = n_in_strict + n_in_loose
+
+        
+        # clockwise, starting from (0,0) = bottom left
+        pures = [  [0,0], [0,1], [1,1], [1,0]  ]
+
+        # vertex is strict NE if has 2 strictly incoming flows, and loose NE if has 2 incoming flows
+
+        # select vertices with 2 strictly incoming flows
+        pure_strict_NE =    [ pures[a] for a in range(len(pures)) if n_in_strict[a] == 2 ]
+
+        # select vertices with 2 incoming flows, excluding the ones already counted as strict
+        pure_loose_NE =     [ pures[a] for a in range(len(pures)) if n_in[a] == 2 and pures[a] not in pure_strict_NE ]
+
+        print(f'Pure non-strict NE: {pure_loose_NE}')
+        print(f'Pure strict NE: {pure_strict_NE}')
+
+        if PLOT_NE:
+            for ne in pure_strict_NE:
+                plt.scatter(ne[0], ne[1], color = NE_COLOR, zorder=10, s = 100)
+
+            for ne in pure_loose_NE:
+                plt.scatter(ne[0], ne[1], edgecolor = NE_COLOR, facecolor = 'none', zorder=10, s = 400, linewidths = 2)
+
+
+
+
 
 ##################################################################################################
 
@@ -896,7 +971,7 @@ class Game22():
 # payoff = [3, 0, 0, 2, 2, 0, 0, 3]
 
 # chicken
-payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
+# payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
 
 # --------------------------------
 # https://arxiv.org/pdf/1701.09043
@@ -906,7 +981,7 @@ payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
 # payoff = [5, 1, 1, 4, 5, 1, 1, 4]
 
 # anti-coordination
-# payoff = [1, 5, 4, 1, 1, 4, 5, 1]
+payoff = [1, 5, 4, 1, 1, 4, 5, 1]
 
 # cyclic
 # payoff = [5, 1, 1, 4, -5, 1, 1, -4]
