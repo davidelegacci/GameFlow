@@ -1,6 +1,6 @@
 # Doc of 2x2 game simulator
 
-## To do
+## To do (see issues)
 
 - [ ]  #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR
 - [ ] #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR
