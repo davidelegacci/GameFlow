@@ -1,7 +1,7 @@
 '''
 WHAT IT DOES
 
-2x2 game
+2x2 game finite normal form game
 
 - draw contours (curves and filled) of payoff function and, if given, potential function
 - draws response graph
