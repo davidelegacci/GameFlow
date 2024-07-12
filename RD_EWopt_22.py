@@ -37,7 +37,7 @@ from scipy.integrate import odeint
 # ------------------------------------------------
 ## Grid density
 # ------------------------------------------------
-GRID_DENSITY =  6 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
+GRID_DENSITY =  8 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
 
 # If needed, fine-tune for side-to-side potential-harmonic plots
 GRID_DENSITY_POTENTIAL =  GRID_DENSITY # Number of trajectories = square of this number; 9 is cool because grid coincides with contours intersections, but it's a bit too dense
@@ -53,8 +53,8 @@ PLAYER_2_COLOR = 'black'
 REPLICATOR_COLOR = 'black'
 PAYFIELD_COLOR = 'black'
 
-VANILLA_COLOR = 'limegreen'
-EXTRA_COLOR = 'lightseagreen'
+VANILLA_COLOR = 'white'
+EXTRA_COLOR = 'white'
 
 EUCLIDEAN_COLOR = 'crimson'
 
@@ -64,8 +64,6 @@ NE_COLOR = 'crimson'
 INITIAL_POINT_COLOR = 'crimson'
 
 
-RD_LINEWIDTH = 0.7
-ED_LINEWIDTH = 0.7
 
 
 # ------------------------------------------------
@@ -74,39 +72,43 @@ ED_LINEWIDTH = 0.7
 CONTINUOUS_TIME_LABEL = 'FTRL-D'
 EXTRAPOLATION_LABEL = 'FTRL+'
 VANILLA_LABEL = 'FTRL'
-PAYOFF_FIELD_LABEL = 'Payfield'
+PAYOFF_FIELD_LABEL = 'Payoff field'
 
 ENTROPIC_LABEL = ' (entropic)'
 EUCLIDEAN_LABEL = ' (euclidean)'
 
-INCLUDE_LEGEND = False
-INCLUDE_AXES_LABELS = False
+NE_LABEL = "Strategic center"
+
+INCLUDE_LEGEND = 1
+INCLUDE_AXES_LABELS = 1
 INCLUDE_TITLE = False
+AXES_LABEL_FONT_SIZE = 12
 
 # ------------------------------------------------
 ## Contours
 # ------------------------------------------------
-PLOT_CONTOURS = True # Global contours switch
+PLOT_CONTOURS = 1 # Global contours switch
 
-PLOT_CONTOURS_FIRST_PLAYER = True
-PLOT_CONTOURS_SECOND_PLAYER = True
+PLOT_CONTOURS_FIRST_PLAYER = 1
+PLOT_CONTOURS_SECOND_PLAYER = 0
 
-PLOT_CONTOURS_POTENTIAL_FUNCTION = True
+PLOT_CONTOURS_POTENTIAL_FUNCTION = 0
 
-PLOT_FILLED_CONTOURS_FIRST_PLAYER = False
-DISPLAY_PAYOFF_CONTOURS_VALUES = True # tag each contour line with corresponding value
+PLOT_FILLED_CONTOURS_FIRST_PLAYER = 1
+ADD_COLORBAR = 0
+DISPLAY_PAYOFF_CONTOURS_VALUES = 0 # tag each contour line with corresponding value
 
-CONTOURS_DENSITY = 20 # number of contours lines
+CONTOURS_DENSITY = 10 # number of contours lines
 FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels, higher = smoother shades transition
 
 # ------------------------------------------------
 ## Quivers
 # ------------------------------------------------
-QUIVER_PAYFIELD = True
-QUIVER_INDIVIDUAL_PAYFIELD = False
-QUIVER_RD = False
+QUIVER_PAYFIELD = 1
+QUIVER_INDIVIDUAL_PAYFIELD = 0
+QUIVER_RD = 0
 
-QUIVER_SCALE = 4.5 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
+QUIVER_SCALE = 4 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
 
 # Finetune for potential and harmonic cases if needed
 QUIVER_SCALE_POTENTIAL = QUIVER_SCALE # How much smaller potential arrows are then computed number
@@ -116,8 +118,12 @@ QUIVER_SCALE_HARMONIC = QUIVER_SCALE # How much smaller harmonic arrows are then
 # ------------------------------------------------
 ## Continuous time dynamics
 # ------------------------------------------------
-PLOT_CONTINUOUS_RD = True
-PLOT_CONTINUOUS_EUCLIDEAN = False
+SOLVE_ODE = 0
+PLOT_CONTINUOUS_RD = 0
+PLOT_CONTINUOUS_EUCLIDEAN = 0
+
+RD_LINEWIDTH = 1.5
+ED_LINEWIDTH = 0.7
 
 ODE_SOLVER_PRECISION = 1000 # high = more precise
 
@@ -129,29 +135,35 @@ CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solv
 # ------------------------------------------------
 
 # entropic
-PLOT_ENTROPIC_VANILLA_FTRL = False
-PLOT_EXTRA_FTRL = False
+PLOT_ENTROPIC_VANILLA_FTRL = 0
+PLOT_EXTRA_FTRL = 0
 
-# euclidean
-PLOT_EUCLIDEAN_VANILLA_FTRL = False
+STEP_SIZE = 1
+EXTRA_FTRL_LINEWIDTH = 1.5
+
+# euclidean; not sure it's correct ! careful !
+PLOT_EUCLIDEAN_VANILLA_FTRL = 0
 
 TIMESTEPS_EXTRA_FTRL = 25000
-TIMESTEPS_VANILLA_FTRL = 500
+TIMESTEPS_VANILLA_FTRL = 1000
 
 
 # ------------------------------------------------
 ## Nash equilibria
 # ------------------------------------------------
-PLOT_NE = True
+PLOT_NE = 1
 
 
 # ------------------------------------------------
 ## Response graph
 # ------------------------------------------------
 DRAW_ORIENTED_EDGES = True # to draw arrow along edges of responde graph
-ANNOTE_DEVIATION_VALUE = True # True to write on edges value of unilateral deviations
-PURE_LABELS_CORNERS = True
-PURE_LABELS_CORNERS_MIXED = False
+ANNOTE_DEVIATION_VALUE = 0 # True to write on edges value of unilateral deviations
+PURE_LABELS_CORNERS = 1 # Add label to pure strategies (which pure, payoff, potential if available)
+PURE_LABELS_CORNERS_MIXED = 0 # Label mixed value of pure strategies
+
+DEVIATION_FONT_SIZE = 30
+PURES_FONT_SIZE = 20
 
 
 
@@ -511,7 +523,20 @@ class Game22():
         UTILITY_LEVELS_1_POTENTIAL = np.array([])
         UTILITY_LEVELS_1_HARMONIC = np.array([])
 
-        UTILITY_LEVELS_2 = np.linspace(min_payoff_player_2, max_payoff_player_2, CONTOURS_DENSITY + 1)
+        # UTILITY_LEVELS_2 = np.linspace(min_payoff_player_2, max_payoff_player_2, CONTOURS_DENSITY + 1)
+
+        # For specific example of Polaris seminar
+
+        u_2_at_NE = self.u(2, 2/3, 1/2)
+
+    
+        first_half = np.linspace(min_payoff_player_2, u_2_at_NE, CONTOURS_DENSITY + 1)
+        second_half = np.linspace(u_2_at_NE, max_payoff_player_2, CONTOURS_DENSITY + 1)[1:] 
+     
+
+        UTILITY_LEVELS_2 =  np.concatenate( (first_half, second_half) )
+
+
         UTILITY_LEVELS_2_POTENTIAL = UTILITY_LEVELS_1_POTENTIAL
         UTILITY_LEVELS_2_HARMONIC = UTILITY_LEVELS_1_HARMONIC + 0.5
         ##################################################
@@ -544,7 +569,7 @@ class Game22():
         # contours player 1
         if PLOT_CONTOURS_FIRST_PLAYER:
             contour_plot_1 = ax.contour(Y1, Y2, data_1, levels = utility_levels_1, colors = PLAYER_1_COLOR, linestyles = 'dashed', linewidths = 0.6)
-            legend_elements = [matplotlib.lines.Line2D([0], [0], color = PLAYER_1_COLOR, label = 'Scores contours pl. 1',linestyle = 'dashed', linewidth= 0.6)]
+            # legend_elements = [matplotlib.lines.Line2D([0], [0], color = PLAYER_1_COLOR, label = 'Payoff contours pl. 1',linestyle = 'dashed', linewidth= 0.6)]
             if DISPLAY_PAYOFF_CONTOURS_VALUES:
                 [txt.set_bbox(dict(facecolor='white', edgecolor='none', pad=0)) for txt in ax.clabel(contour_plot_1, levels = contour_plot_1.levels[contour_plot_levels_start::add_countour_label_every] ,  inline=True, fontsize=7, fmt='(%1.1f)')] # fmt rounds to one decimal place
 
@@ -557,8 +582,9 @@ class Game22():
             except:
                 payoff_contourf = ax.contourf(Y1, Y2, data_1, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
 
-            payoff_colorbar = plt.colorbar(payoff_contourf)
-            payoff_colorbar.set_label(f'Payoff player 1 in [{min_payoff_player_1}, {max_payoff_player_1}] ', labelpad=20, rotation=90) #, va='bottom')
+            if PLOT_FILLED_CONTOURS_FIRST_PLAYER and ADD_COLORBAR:
+                payoff_colorbar = plt.colorbar(payoff_contourf)
+                payoff_colorbar.set_label(f'Payoff player 1 in [{min_payoff_player_1}, {max_payoff_player_1}] ', labelpad=20, rotation=90,  fontsize = 20) #, va='bottom')
 
         
         # contours player 2
@@ -566,7 +592,7 @@ class Game22():
 
             data_2 = self.u(2, Y1, Y2 ) 
             contour_plot_2 = ax.contour(Y1, Y2, data_2, levels = utility_levels_2, colors = PLAYER_2_COLOR, linestyles = 'dashdot', linewidths = 0.6)
-            legend_elements.extend( [   matplotlib.lines.Line2D([0], [0], color = PLAYER_2_COLOR, label = 'Scores contours pl. 2',linestyle = 'dashdot', linewidth = 0.6)] )
+            legend_elements.extend( [   matplotlib.lines.Line2D([0], [0], color = PLAYER_2_COLOR, label = 'Payoff contours pl. 2',linestyle = 'dashdot', linewidth = 0.6)] )
 
             if DISPLAY_PAYOFF_CONTOURS_VALUES:
                 [txt.set_bbox(dict(facecolor='white', edgecolor='none', pad=0)) for txt in ax.clabel(contour_plot_2, levels = contour_plot_2.levels[contour_plot_levels_start::add_countour_label_every] ,  inline=True, fontsize=7, fmt='(%1.1f)')]
@@ -630,7 +656,7 @@ class Game22():
         
         # Quiver payoff field
         if QUIVER_PAYFIELD:
-            ax.quiver(Y1, Y2, *ED, scale = scale * scale, color =  PAYFIELD_COLOR, width=0.003, headlength=3)
+            ax.quiver(Y1, Y2, *ED, scale = scale * scale, color =  PAYFIELD_COLOR, width=0.005, headlength=4)
 
         if QUIVER_PAYFIELD and QUIVER_INDIVIDUAL_PAYFIELD:
 
@@ -646,7 +672,7 @@ class Game22():
 
         #if self.is_potential:
         # payoff_field_label = 'Payoff field'
-        #payoff_field_label = 'Scores'
+        #payoff_field_label = 'Payoff'
         # legend_elements = [ ]
         legend_elements =  [matplotlib.lines.Line2D([0], [0], color= PAYFIELD_COLOR, label = PAYOFF_FIELD_LABEL)] 
 
@@ -658,10 +684,10 @@ class Game22():
             initial_point = np.array([ y1[1], y2[3] ])
             print(f'Initial point of extra ftrl: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
-            EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, 0.02 )
+            EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, STEP_SIZE )
             nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
 
-            plt.plot(*EGMD, color = EXTRA_COLOR,  linewidth = 0.7, label = EXTRAPOLATION_LABEL + ENTROPIC_LABEL)
+            plt.plot(*EGMD, color = EXTRA_COLOR,  linewidth = EXTRA_FTRL_LINEWIDTH, label = EXTRAPOLATION_LABEL + ENTROPIC_LABEL)
             # plt.scatter( [nash_x], [nash_y], color = 'black', s = 10 )
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = EXTRA_COLOR, label=EXTRAPOLATION_LABEL + ENTROPIC_LABEL)]  )
 
@@ -690,7 +716,9 @@ class Game22():
         return legend_elements
 
 
-    def ode_RD_plot(self, ax):
+    def ode_plot(self, ax):
+
+        legend_elements = []
 
         # Set up grid
 
@@ -716,16 +744,15 @@ class Game22():
         start = [ [a,b] for a in y1 for b in y2 ]
 
         # Replicator
-        ax.plot(*zip(*odeint(self.RD, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
-        [ ax.plot(*zip(*odeint(self.RD, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
-
-        legend_elements = [ matplotlib.lines.Line2D([0], [0], color = REPLICATOR_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ]
+        if PLOT_CONTINUOUS_RD:
+            ax.plot(*zip(*odeint(self.RD, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
+            [ ax.plot(*zip(*odeint(self.RD, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
+            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = REPLICATOR_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
 
         # Euclidean
         if PLOT_CONTINUOUS_EUCLIDEAN:
             ax.plot(*zip(*odeint(self.ED, start[0], t_eu)), color = PAYFIELD_COLOR, linewidth = ED_LINEWIDTH, linestyle = '--')
             [ ax.plot(*zip(*odeint(self.ED, p, t_eu)), color = PAYFIELD_COLOR, linewidth = ED_LINEWIDTH, linestyle = '--') for p in start[1:] ]
-
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = PAYFIELD_COLOR, label = CONTINUOUS_TIME_LABEL + EUCLIDEAN_LABEL, linestyle = '--', linewidth = ED_LINEWIDTH)] )
 
         return  legend_elements
@@ -736,8 +763,8 @@ class Game22():
 
         if PLOT_NE:
             try:
-                plt.scatter(self.interior_ne[0], self.interior_ne[1], color = NE_COLOR, zorder=10) # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
-                legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = NE_COLOR, label = 'NE', linestyle = '', marker = 'o' )] )
+                plt.scatter(self.interior_ne[0], self.interior_ne[1], color = NE_COLOR, zorder=10, s = 60) # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
+                legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = NE_COLOR, label = NE_LABEL, linestyle = '', marker = 'o' )] )
 
             except:
                 pass
@@ -745,16 +772,16 @@ class Game22():
         if PLOT_CONTOURS:
             legend_elements.extend(self.contour_plot(ax))
 
-        if PLOT_CONTINUOUS_RD:
-            legend_elements.extend(self.ode_RD_plot(ax))
+        if SOLVE_ODE:
+            legend_elements.extend(self.ode_plot(ax))
 
-        # Run always; if statements are inside function
-        legend_elements.extend(self.quiver_RD_plot(ax))
+        if QUIVER_PAYFIELD:
+            legend_elements.extend(self.quiver_RD_plot(ax))
 
 
         if INCLUDE_AXES_LABELS:
-            ax.set_xlabel(f'Prob. player 1 assigns to {self.strategies_labels[0][1]} in {{{self.strategies_labels[0][0]}, {self.strategies_labels[0][1]}}}', fontsize=10)
-            ax.set_ylabel(f'Prob. player 2 assigns to {self.strategies_labels[1][1]} in {{{self.strategies_labels[1][0]}, {self.strategies_labels[1][1]}}}', fontsize=10)
+            ax.set_xlabel(f'Prob. player 1 assigns to {self.strategies_labels[0][1]} in {{{self.strategies_labels[0][0]}, {self.strategies_labels[0][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
+            ax.set_ylabel(f'Prob. player 2 assigns to {self.strategies_labels[1][1]} in {{{self.strategies_labels[1][0]}, {self.strategies_labels[1][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
 
 
         # ax.set_title(f'Shahshahani vs. Euclidean individual gradient ascent \n $2 \\times 2$ {self.game_name} - {self.game_type}', fontsize = '9')
@@ -779,7 +806,7 @@ class Game22():
 
 
         if INCLUDE_LEGEND:
-            ax.legend(handles=legend_elements, loc='best', fontsize = 7)
+            ax.legend(handles=legend_elements, loc='upper left', fontsize = 10)
 
 
 
@@ -836,10 +863,10 @@ class Game22():
 
 
             # do include mixed values of pure strategies
-            plt.text(x_min - 10 * shift, y_max + 2 * shift,   f'({a10},{a21}) {mixed_top_left}: ({self.u_pure[1][0][1]}, {self.u_pure[2][0][1]}){pot_top_left}', verticalalignment='top',    horizontalalignment='left',    fontsize = 10)
-            plt.text(x_max + 10 * shift, y_max + 2 * shift,   f'({a11},{a21}) {mixed_top_right}: ({self.u_pure[1][1][1]}, {self.u_pure[2][1][1]}){pot_top_right}', verticalalignment='top',    horizontalalignment='right',   fontsize = 10)
-            plt.text(x_min - 10 * shift, y_min - 2.9 * shift,   f'({a10},{a20}) {mixed_bottom_left}: ({self.u_pure[1][0][0]}, {self.u_pure[2][0][0]}){pot_bottom_left}', verticalalignment='bottom', horizontalalignment='left',     fontsize = 10)
-            plt.text(x_max + 10 * shift, y_min - 2.9 * shift,   f'({a11},{a20}) {mixed_bottom_right}: ({self.u_pure[1][1][0]}, {self.u_pure[2][1][0]}){pot_bottom_right}', verticalalignment='bottom', horizontalalignment='right',    fontsize = 10)
+            plt.text(x_min - 2 * shift, y_max + 3 * shift,   f'({a10},{a21}) {mixed_top_left}: u = ({self.u_pure[1][0][1]}, {self.u_pure[2][0][1]}){pot_top_left}', verticalalignment='top',    horizontalalignment='left',    fontsize = PURES_FONT_SIZE)
+            plt.text(x_max + 2 * shift, y_max + 3 * shift,   f'({a11},{a21}) {mixed_top_right}: u = ({self.u_pure[1][1][1]}, {self.u_pure[2][1][1]}){pot_top_right}', verticalalignment='top',    horizontalalignment='right',   fontsize = PURES_FONT_SIZE)
+            plt.text(x_min - 2 * shift, y_min - 4 * shift,   f'({a10},{a20}) {mixed_bottom_left}: u = ({self.u_pure[1][0][0]}, {self.u_pure[2][0][0]}){pot_bottom_left}', verticalalignment='bottom', horizontalalignment='left',     fontsize = PURES_FONT_SIZE)
+            plt.text(x_max + 2 * shift, y_min - 4 * shift,   f'({a11},{a20}) {mixed_bottom_right}: u = ({self.u_pure[1][1][0]}, {self.u_pure[2][1][0]}){pot_bottom_right}', verticalalignment='bottom', horizontalalignment='right',    fontsize = PURES_FONT_SIZE)
 
 
                 
@@ -866,6 +893,10 @@ class Game22():
         n_in_bottom_right_loose = 0
         n_in_bottom_left_loose = 0
 
+        # Response graph edges arrow style
+
+        arr_style = ",head_length=1, head_width=1"
+
         # -------------------------------------------------------------------------
         # Bottom border
         deviation = self.u_pure[1][1][0] - self.u_pure[1][0][0]
@@ -880,9 +911,10 @@ class Game22():
             n_in_bottom_left_loose += 1
             arr = "<->"
         # arrow
-        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_min), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr, lw=2))
+        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_min), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr + arr_style, lw=3))
         # deviation value
-        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_min-2*shift, abs(deviation), color = 'red', fontsize = 15)
+        #if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_min-5*shift, f"bottom = {abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_min-5*shift, f"{abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
 
         # -------------------------------------------------------------------------
         # Top border
@@ -898,9 +930,10 @@ class Game22():
             n_in_top_left_loose += 1
             arr = "<->"
         # arrow
-        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_max), xytext=(x_min, y_max),arrowprops=dict(arrowstyle = arr, lw=2))
+        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_max), xytext=(x_min, y_max),arrowprops=dict(arrowstyle = arr + arr_style, lw=3))
         # deviation value
-        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_max + 1.5*shift, abs(deviation), color = 'red', fontsize = 15)
+        #if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_max + 1.5*shift, f"top = {abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max / 2, y_max + 1.5*shift, f"{abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
 
         # -------------------------------------------------------------------------
         # Right border
@@ -916,9 +949,15 @@ class Game22():
             n_in_bottom_right_loose += 1
             arr = "<->"
         # arrow
-        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_max), xytext=(x_max, y_min),arrowprops=dict(arrowstyle = arr, lw=2))
+        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_max, y_max), xytext=(x_max, y_min),arrowprops=dict(arrowstyle = arr + arr_style, lw=3))
+
         # deviation value
-        if ANNOTE_DEVIATION_VALUE: plt.text(x_max + 1.5*shift , y_max / 2, abs(deviation), color = 'red', fontsize = 15)
+
+        # with text
+        # if ANNOTE_DEVIATION_VALUE: plt.text(x_max + 1.5*shift , y_max / 2, f"right = {abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
+
+        # only number
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_max + 1.5*shift , y_max / 2, abs(deviation), color = 'red', fontsize = DEVIATION_FONT_SIZE)
 
 
         # -------------------------------------------------------------------------
@@ -935,9 +974,10 @@ class Game22():
             n_in_bottom_left_loose += 1
             arr = "<->"
         # arrow
-        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_min, y_max), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr, lw=2))
+        if DRAW_ORIENTED_EDGES: plt.annotate('', xy=(x_min, y_max), xytext=(x_min, y_min), arrowprops=dict(arrowstyle = arr + arr_style, lw=3))
         # deviation value
-        if ANNOTE_DEVIATION_VALUE: plt.text(x_min - 4*shift, y_max / 2, abs(deviation), color = 'red', fontsize = 15)
+        #if ANNOTE_DEVIATION_VALUE: plt.text(x_min - 11*shift, y_max / 2, f"left = {abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
+        if ANNOTE_DEVIATION_VALUE: plt.text(x_min - 3*shift, y_max / 2, f"{abs(deviation)}", color = 'red', fontsize = DEVIATION_FONT_SIZE)
 
 
         # -------------------------------------------------------------------------
@@ -976,8 +1016,9 @@ class Game22():
                 plt.scatter(ne[0], ne[1], edgecolor = NE_COLOR, facecolor = 'none', zorder=10, s = 400, linewidths = 2)
 
 
-
-
+        # Hard coded removed axes ticks labels
+        plt.gca().set_xticks([])
+        plt.gca().set_yticks([])
 
 ##################################################################################################
 
@@ -1077,11 +1118,13 @@ class Game22():
 # CRUCIAL: Harmonic center
 # --------------------------------------------------
 # These 4 numbers are free
-# Candogan harmonic for MU = [ [ 1, 1 ], [ 1, 1 ]  ]
 # Changing them chages the NE of the game, given by MU / |MU|
 # Equivalently, changes inner product underpinning notion of harmonicity
-MU = [ [ 1, 1], [ 1, 1 ]  ]
 
+# Candogan harmonic:
+# MU = [ [ 1, 1 ], [ 1, 1 ]  ]
+
+MU = [ [ 1, 2 ], [ 1, 1 ]  ]
 
 # --------------------------------------------------
 # Harmonic deviations
@@ -1118,50 +1161,64 @@ bottom = MU[1][1] / MU[0][1] * left
 
 # -----------------------------
 # Standard Matching pennies
-alpha = +1
-beta = -1
-gamma = -1
-delta = -1
-# -----------------------------
 # alpha = +1
 # beta = -1
 # gamma = -1
 # delta = -1
 # -----------------------------
+alpha = +1
+beta = -1
+gamma = -1
+delta = -1
+# -----------------------------
 
-payoff = [alpha, gamma, alpha-bottom, gamma+top, beta, beta+left, delta+right, delta]
+# HARMONIC PAYOFF
+# payoff = [alpha, gamma, alpha-bottom, gamma+top, beta, beta+left, delta+right, delta]
 
-payoff = [1, -1, -1, 1, -1, 1, 1, -1]
-
-# --------------------------------------------------
-# Potential
-# --------------------------------------------------
-
-pot_AA = 2
-pot_AB = 1
-pot_BA = 1
-pot_BB = 3
-
-pot_left = pot_AA - pot_AB
-pot_right = pot_BB - pot_BA
-pot_top = pot_BB - pot_AB
-pot_bottom = pot_AA - pot_BA
-
-payoff = [alpha, delta, alpha - pot_bottom, delta + pot_top, beta, beta - pot_left , gamma, gamma + pot_right]
+# harmonic payoff, no commas
+payoff = [1, -1, 0, 0, -1, 1, 0, -1]
 
 # End POLARIS June 2024
 ###############################################
 
 
+
+# --------------------------------------------------
+# Potential 2x2 game
+# --------------------------------------------------
+
+"""potential function, 4 dofs"""
+# pot_AA = 0
+# pot_AB = 1
+# pot_BA = 1
+# pot_BB = 2
+
+# Feed to game instance : pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB]
+
+"""deviations fulfilling potential constraint, all fixed"""
+# pot_left = pot_AA - pot_AB
+# pot_right = pot_BB - pot_BA
+# pot_top = pot_BB - pot_AB
+# pot_bottom = pot_AA - pot_BA
+
+"""payoff realizing such deviations, 4 dofs (alpha, beta, gamma, delta); 4 constrained"""
+# payoff = [alpha, delta, alpha - pot_bottom, delta + pot_top, beta, beta - pot_left , gamma, gamma + pot_right]
+# --------------------------------------------------
+# End potential 2x2 game
+# --------------------------------------------------
+
+
 # --------------------------------------------------------
 ## Game instance
 # --------------------------------------------------------
-G = Game22(payoff, 'sha', game_type = 'potential',  game_name = 'harmonic_1234', pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB], strategies_labels = [ ['A', 'B'], ['A', 'B'] ] )
+G = Game22(payoff, 'sha', game_type = '',  game_name = 'harmonic', pure_potential_function = 0, strategies_labels = [ ['A', 'B'], ['A', 'B'] ] )
+
+
 
 # --------------------------------------------------------
 ## Plot
 # --------------------------------------------------------
-fig, axs = plt.subplots(1, 1, figsize=(10, 4))#, dpi = 2400)
+fig, axs = plt.subplots(1, 1, figsize=(13, 9))#, dpi = 2400)
 G.full_plot(axs)
 ###############################################
 
@@ -1169,7 +1226,10 @@ G.full_plot(axs)
 # --------------------------------------------------------
 ## Save methods
 # --------------------------------------------------------
-# plt.savefig(f'./Results/POLARIS_June_24/{G.game_name}.pdf', bbox_inches='tight', pad_inches = 0)
+
+path_to_save = '/Users/davidelegacci/RESEARCH/phd/phd-research/phd-personal-writing/talks_slides/11_semiflash_tolosa_24/figs'
+
+plt.savefig(f'{path_to_save}/{G.game_name}.pdf', bbox_inches='tight', pad_inches = 0)
 
 #####################################################
 
