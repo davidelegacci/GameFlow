@@ -1,3 +1,9 @@
 Results/
+experiments222/
+experimentsNplayer
+
 *.pdf
+*.txt
+*.png
+
 .DS_Store
