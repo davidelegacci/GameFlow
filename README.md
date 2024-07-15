@@ -1,9 +1,6 @@
-# Doc of 2x2 game simulator
+# Doc of Game Flow
 
-## To do (see issues)
-
-- [ ]  #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR
-- [ ] #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR
-- [ ] global careful check and cleanup!
-- [ ] once all clean, make "the pedagogical drawing", as would use to explain game dynamcis to dad; cf memo vocale
+# 2x2
+# 2x2x2
+# N player, arbitrary strategies
 
