@@ -37,7 +37,7 @@ from scipy.integrate import odeint
 # ------------------------------------------------
 ## Grid density
 # ------------------------------------------------
-GRID_DENSITY =  8 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
+GRID_DENSITY =  6 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
 
 # If needed, fine-tune for side-to-side potential-harmonic plots
 GRID_DENSITY_POTENTIAL =  GRID_DENSITY # Number of trajectories = square of this number; 9 is cool because grid coincides with contours intersections, but it's a bit too dense
@@ -79,17 +79,17 @@ EUCLIDEAN_LABEL = ' (euclidean)'
 
 NE_LABEL = "Strategic center"
 
-INCLUDE_LEGEND = 1
+INCLUDE_LEGEND = 0
 INCLUDE_AXES_LABELS = 1
 INCLUDE_TITLE = False
-AXES_LABEL_FONT_SIZE = 12
+AXES_LABEL_FONT_SIZE = 8
 
 # ------------------------------------------------
 ## Contours
 # ------------------------------------------------
 PLOT_CONTOURS = 1 # Global contours switch
 
-PLOT_CONTOURS_FIRST_PLAYER = 1
+PLOT_CONTOURS_FIRST_PLAYER = 0
 PLOT_CONTOURS_SECOND_PLAYER = 0
 
 PLOT_CONTOURS_POTENTIAL_FUNCTION = 0
@@ -104,11 +104,11 @@ FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels, higher = smoothe
 # ------------------------------------------------
 ## Quivers
 # ------------------------------------------------
-QUIVER_PAYFIELD = 1
+QUIVER_PAYFIELD = 0
 QUIVER_INDIVIDUAL_PAYFIELD = 0
 QUIVER_RD = 0
 
-QUIVER_SCALE = 4 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
+QUIVER_SCALE = 6 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
 
 # Finetune for potential and harmonic cases if needed
 QUIVER_SCALE_POTENTIAL = QUIVER_SCALE # How much smaller potential arrows are then computed number
@@ -118,8 +118,8 @@ QUIVER_SCALE_HARMONIC = QUIVER_SCALE # How much smaller harmonic arrows are then
 # ------------------------------------------------
 ## Continuous time dynamics
 # ------------------------------------------------
-SOLVE_ODE = 0
-PLOT_CONTINUOUS_RD = 0
+SOLVE_ODE = 1
+PLOT_CONTINUOUS_RD = 1
 PLOT_CONTINUOUS_EUCLIDEAN = 0
 
 RD_LINEWIDTH = 1.5
@@ -158,7 +158,7 @@ PLOT_NE = 1
 ## Response graph
 # ------------------------------------------------
 DRAW_ORIENTED_EDGES = True # to draw arrow along edges of responde graph
-ANNOTE_DEVIATION_VALUE = 0 # True to write on edges value of unilateral deviations
+ANNOTE_DEVIATION_VALUE = 1 # True to write on edges value of unilateral deviations
 PURE_LABELS_CORNERS = 1 # Add label to pure strategies (which pure, payoff, potential if available)
 PURE_LABELS_CORNERS_MIXED = 0 # Label mixed value of pure strategies
 
@@ -849,10 +849,10 @@ class Game22():
                 plt.gca().set_yticks([])
 
             if self.is_potential:
-                pot_top_left = f", pot = {self.pure_potential_function[0][1]}"
-                pot_top_right = f", pot = {self.pure_potential_function[1][1]}"
-                pot_bottom_left = f", pot = {self.pure_potential_function[0][0]}"
-                pot_bottom_right = f", pot = {self.pure_potential_function[1][0]}"
+                pot_top_left = f", $\\phi$ = {self.pure_potential_function[0][1]}"
+                pot_top_right = f", $\\phi$ = {self.pure_potential_function[1][1]}"
+                pot_bottom_left = f", $\\phi$ = {self.pure_potential_function[0][0]}"
+                pot_bottom_right = f", $\\phi$ = {self.pure_potential_function[1][0]}"
             else:
                 pot_top_left = ""
                 pot_top_right = ""
@@ -1122,9 +1122,9 @@ class Game22():
 # Equivalently, changes inner product underpinning notion of harmonicity
 
 # Candogan harmonic:
-# MU = [ [ 1, 1 ], [ 1, 1 ]  ]
+MU = [ [ 1, 1 ], [ 1, 1 ]  ]
 
-MU = [ [ 1, 2 ], [ 1, 1 ]  ]
+# MU = [ [ 1, 2 ], [ 1, 1 ]  ]
 
 # --------------------------------------------------
 # Harmonic deviations
@@ -1176,7 +1176,7 @@ delta = -1
 # payoff = [alpha, gamma, alpha-bottom, gamma+top, beta, beta+left, delta+right, delta]
 
 # harmonic payoff, no commas
-payoff = [1, -1, 0, 0, -1, 1, 0, -1]
+# payoff = [1, -1, 0, 0, -1, 1, 0, -1]
 
 # End POLARIS June 2024
 ###############################################
@@ -1211,7 +1211,8 @@ payoff = [1, -1, 0, 0, -1, 1, 0, -1]
 # --------------------------------------------------------
 ## Game instance
 # --------------------------------------------------------
-G = Game22(payoff, 'sha', game_type = '',  game_name = 'harmonic', pure_potential_function = 0, strategies_labels = [ ['A', 'B'], ['A', 'B'] ] )
+payoff = [-1, 2, 3, 6, +1, -2, -3, -6]
+G = Game22(payoff, 'sha', game_type = 'potential',  game_name = 'potential_zero_sum', pure_potential_function = [3, 0,  7, 4], strategies_labels = [ ['U', 'D'], ['L', 'R'] ] )
 
 
 
@@ -1227,9 +1228,9 @@ G.full_plot(axs)
 ## Save methods
 # --------------------------------------------------------
 
-path_to_save = '/Users/davidelegacci/RESEARCH/phd/phd-research/phd-personal-writing/talks_slides/11_semiflash_tolosa_24/figs'
+path_to_save = './Results'
 
-plt.savefig(f'{path_to_save}/{G.game_name}.pdf', bbox_inches='tight', pad_inches = 0)
+plt.savefig(f'{path_to_save}/{G.game_name}.png', bbox_inches='tight', pad_inches = 0)
 
 #####################################################
 

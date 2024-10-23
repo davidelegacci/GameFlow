@@ -2,6 +2,7 @@
 cd(dirname(@__FILE__()))
 
 CURRENT_FOLDER = "exploring_harmonic_dynamics"
+EXPERIMENT_NAME = "generalized_harmonic_222_boundary_mfld"
 
 # using StrategicGames
 using DifferentialEquations
@@ -57,7 +58,7 @@ N = 3
 # Number of actions for each player
 A = [2,2,2]
 
-BARYCENTER = [0.5, 0.5, 0.5]
+BARYCENTER = [0, 3/8, 1/4]
 
 ########################################################
 # Initial point
@@ -97,8 +98,9 @@ end
 # payoff = [6, 0, -5, -1, 1, 3, -3, -1, 3, -8, -1, -2, 0, 1, -2, 1, -10, -1, 3, -3, 1, -2, 0, 0]
 
 # payoff =  [-5.00000000000000, 3.00000000000000, 1.00000000000000, -1.00000000000000, -3, -2, 2, 1, 3.00000000000000, -7.00000000000000, 0, -1, -2, 3, -3, 1, -3.81000000000000, -3, 2, -2, -1, 2, 3, 3]
-payoff = [16, 16, 24, -9, -1, 3, 3, 2, 17, -18, 3, -3, -1, 1, -4, -4, -23, -4, -4, 3, 2, 0, 3, -3]
-EXPERIMENT_NAME = "generalized_harmonic_222"
+# payoff = [16, 16, 24, -9, -1, 3, 3, 2, 17, -18, 3, -3, -1, 1, -4, -4, -23, -4, -4, 3, 2, 0, 3, -3]
+payoff = [17, 20, 0, -13, -2, -2, 0, 4, 1, -4, 3, 1, -7, -1, -4, -2, 0, 3, -1, 1, 3, -2, -2, 1]
+
 
 ########################################################
 # Potential in Candogan flat format
@@ -350,7 +352,7 @@ end
 
 function save_experiment(experiment_name, comment)
     "Create folder with experiment name, save image and text file with comment"
-    dir = "experiments/$CURRENT_FOLDER/$experiment_name"
+    dir = "experiments222/$CURRENT_FOLDER/$experiment_name"
     mkdir(dir)
     open("$dir/$experiment_name.txt","a") do io
         println(io,"Payoff Julia format = ", u_pure)
@@ -366,7 +368,7 @@ end
 
 function save_distance(experiment_name, comment)
     "Create folder with experiment name, save image and text file with comment"
-    dir = "experiments/$CURRENT_FOLDER/$experiment_name"
+    dir = "experiments222/$CURRENT_FOLDER/$experiment_name"
     savefig("$dir/$experiment_name-distance-$comment.pdf")
     # savefig("$dir/$experiment_name-distance-$comment.png")
 end
@@ -435,6 +437,28 @@ function plot_RD(x0, final_time )
 
 end
 
+function NE_manifold(mu21, mu22)
+   NE = [
+    (-3 .* mu21/17 .+ mu22/17) ./ (-mu21/17 .+ 6*mu22 ./ 17),
+    mu22 ./ (19 .* mu21 ./ 17 .+ 39*mu22 ./ 17),
+    mu21 ./ (mu21 .+ mu22)
+   ]
+   return NE
+end
+
+function plot_NE_manifold(range_mu)
+    mu21 = LinRange(0.1, range_mu, 5)
+    mu22 = 1
+    NE_mfld = NE_manifold(mu21, mu22)
+   println()
+   for data in NE_mfld
+    println(data)
+   end
+   println()
+   plot!(NE_mfld...) 
+end
+
+
 ########################################################
 # Experiments
 ########################################################
@@ -451,7 +475,7 @@ plot(xlims=(0, 1), ylims=(0,1), zlims = (0,1), title = "Exponential weights upda
 
 # Plot initial point and barycenter
 plpoint(initial_point, "Initial point",  "yellow")
-NE = [0.5, 0.5, 0.5]
+NE = BARYCENTER
 # plpoint(NE, "Center",  "black", 2)
 
 
@@ -486,6 +510,9 @@ plot!([1,1], [1,0], [1,1], color = "black", label = false)
 plot!([0,0], [1,0], [1,1], color = "black", label = false)  
 plot!([0,0], [1,0], [0,0], color = "black", label = false) 
 plot!([1,1], [0,0], [0,1], color = "black", label = false)
+
+# plot NE_manifold
+plot_NE_manifold(3)
 
 save_experiment(EXPERIMENT_NAME, "Exploring harmonic dynamics")  # <------------------------------------ save
 
