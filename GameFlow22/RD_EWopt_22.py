@@ -29,6 +29,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from scipy.integrate import odeint
+from aspera import utils
+import time
 
 # ------------------------------------------------
 ## PARAMETERS
@@ -474,6 +476,8 @@ class Game22():
     # ------------------------------------------------
     ## NE finder
     # ------------------------------------------------
+
+
 
     def find_fully_mixed_NE(self):
 
@@ -1017,19 +1021,19 @@ class Game22():
         # vertex is strict NE if has 2 strictly incoming flows, and loose NE if has 2 incoming flows
 
         # select vertices with 2 strictly incoming flows
-        pure_strict_NE =    [ pures[a] for a in range(len(pures)) if n_in_strict[a] == 2 ]
+        self.pure_strict_NE =    [ pures[a] for a in range(len(pures)) if n_in_strict[a] == 2 ]
 
         # select vertices with 2 incoming flows, excluding the ones already counted as strict
-        pure_loose_NE =     [ pures[a] for a in range(len(pures)) if n_in[a] == 2 and pures[a] not in pure_strict_NE ]
+        self.pure_loose_NE =     [ pures[a] for a in range(len(pures)) if n_in[a] == 2 and pures[a] not in self.pure_strict_NE ]
 
-        print(f'Pure non-strict NE: {pure_loose_NE}')
-        print(f'Pure strict NE: {pure_strict_NE}')
+        print(f'Pure non-strict NE: {self.pure_loose_NE}')
+        print(f'Pure strict NE: {self.pure_strict_NE}')
 
         if PLOT_NE:
-            for ne in pure_strict_NE:
+            for ne in self.pure_strict_NE:
                 plt.scatter(ne[0], ne[1], color = NE_COLOR, zorder=10, s = 100)
 
-            for ne in pure_loose_NE:
+            for ne in self.pure_loose_NE:
                 plt.scatter(ne[0], ne[1], edgecolor = NE_COLOR, facecolor = 'none', zorder=10, s = 400, linewidths = 2)
 
 
@@ -1049,6 +1053,15 @@ class Game22():
                     plt.plot([self.interior_ne[0], GRID_1[ grid_index_1[i] ]], [self.interior_ne[1], GRID_2[ grid_index_2[i] ]], 'k--' )
             except:
                 print("You're trying to plot harmonic center, but there is no interior Nash. Switch PLOT_SEGMENT_PERPENDICULAR_HARMONIC_CENTER to False")
+
+    # ---------------------------------------
+    def return_NE_info(self):
+        return f"""
+        Fully mixed NE: {self.interior_ne}\n
+        Pure non-strict NE: {self.pure_loose_NE}\n
+        Pure strict NE: {self.pure_strict_NE}\n
+        """
+
 
 ##################################################################################################
 
@@ -1248,7 +1261,7 @@ pot_bottom = pot_AA - pot_BA
 
 
 # boundary garmonic
-# payoff = [9, -7, -1, -2, -2, -2, 2, -3]
+u = [9, -7, -1, -2, -2, -2, 2, -3]
 # payoff = [-6, 9, 4, 4, 2, 2, -4, 1]
 
 
@@ -1256,8 +1269,8 @@ pot_bottom = pot_AA - pot_BA
 # u = [0, 3, 1, 3, 0, 1, 2, 2]
 # G = Game22(u, 'sha', game_type = 'potential',  game_name = 'potential pure non strict NE', strategies_labels = [ ['L', 'R'], ['B', 'T'] ], pure_potential_function = [0, 1, 1, 1] )
 
-u =  [0, 1, 5, 6, 6, 1, 5, 0]
-G = Game22(u, 'sha', game_type = '',  game_name = 'BS', strategies_labels = [ ['L', 'R'], ['B', 'T'] ] )
+# u =  [0, 1, 5, 6, 6, 1, 5, 0]
+G = Game22(u, 'sha', game_type = '',  game_name = 'pot', strategies_labels = [ ['L', 'R'], ['B', 'T'] ] )
 
 
 
@@ -1302,10 +1315,17 @@ G.full_plot(axs)
 ## Save methods
 # --------------------------------------------------------
 
-path_to_save = './Results/potential_pure_non_strict_NE/'
-# path_to_save = '/Users/davidelegacci/RESEARCH/phd/phd-research-events/2024/9_neurips_vancouver_october24/neurips-2024-poster/Figures'
+root = './Results/'
 
-# plt.savefig(f'{path_to_save}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
+game_directory = f'{root}/{G.game_name}'
+current_directory = f'{game_directory}/{time.time()}'
+
+utils.make_folder(current_directory)
+
+plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
+utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', u)
+utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
+
 
 #####################################################
 
