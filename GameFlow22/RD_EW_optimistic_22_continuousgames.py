@@ -8,12 +8,12 @@ WHAT IT DOES
 - computes interior NE
 - plots dynamics and algorithms. Currently implemented:
 
-1. Continuous time FTRL with entropic regularizer (replicator dynamics)
-2. Continuous time FTRL with euclidean regularizer (Euclidean projection dynamics)              <---------------   #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR    --------------------------------- to check, sharp reduced euclidean metric is NOT identity, cf icml appendix and my notes. Might be missing factor.
+1. Continuous time DA with entropic regularizer 
+2. Continuous time DA with euclidean regularizer (Euclidean projection dynamics)              <---------------   #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR    --------------------------------- to check, sharp reduced euclidean metric is NOT identity, cf icml appendix and my notes. Might be missing factor.
 
-3. Discrete time vanilla FTRL    with euclidean regularizer (Euclidean projection algorithm)    <---------------   #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR    --------------------------------- to check, weird behavior in Prisoner'd Dilemma, 45 degrees in "wrong" direction
-4. Discrete time vanilla FTRL    with entropic  regularizer (Euclidean projection algorithm)
-5. Discrete time         FTRL+   with entropic  regularizer (exponential weights) in extra-gradient variant (not optimistic, two vector queries per step)
+3. Discrete time vanilla DA    with euclidean regularizer (Euclidean projection algorithm)    <---------------   #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR    --------------------------------- to check, weird behavior in Prisoner'd Dilemma, 45 degrees in "wrong" direction
+4. Discrete time vanilla DA    with entropic  regularizer (Euclidean projection algorithm)
+5. Discrete time         DA+   with entropic  regularizer (exponential weights) in extra-gradient variant (not optimistic, two vector queries per step)
 
 # TO DO
 
@@ -73,9 +73,9 @@ INITIAL_POINT_COLOR = 'crimson'
 # ------------------------------------------------
 ## Labels
 # ------------------------------------------------
-CONTINUOUS_TIME_LABEL = 'FTRL-D'
-EXTRAPOLATION_LABEL = 'FTRL+'
-VANILLA_LABEL = 'FTRL'
+CONTINUOUS_TIME_LABEL = 'DA-D'
+EXTRAPOLATION_LABEL = 'DA+'
+VANILLA_LABEL = 'DA'
 PAYOFF_FIELD_LABEL = 'Payoff field'
 
 ENTROPIC_LABEL = ' (entropic)'
@@ -116,7 +116,7 @@ QUIVER_PAYFIELD = 1
 QUIVER_INDIVIDUAL_PAYFIELD = 0
 QUIVER_RD = 0
 
-QUIVER_SCALE = 6 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
+QUIVER_SCALE = 6 # Scaling for quiver plots; high number = short arrow DA is scaled by this number, payfield is scaled by this number SQUARED
 
 # Finetune for potential and harmonic cases if needed
 QUIVER_SCALE_POTENTIAL = QUIVER_SCALE # How much smaller potential arrows are then computed number
@@ -129,7 +129,15 @@ PLOT_SEGMENT_PERPENDICULAR_HARMONIC_CENTER = 0
 ## Continuous time dynamics
 # ------------------------------------------------
 SOLVE_ODE = 1
-PLOT_CONTINUOUS_RD = 1
+
+# Q_ENTROPY_PARAMETER = 0     # log-barrier
+# Q_ENTROPY_PARAMETER = 0.5   # Tsallis entropy
+Q_ENTROPY_PARAMETER = 1     # Gibbs entropy (replicator)
+
+
+ENTROPIC_LABEL += f', q ={Q_ENTROPY_PARAMETER}'
+
+PLOT_CONTINUOUS_DA = 1
 INDEX_1 = 1 #4 # choose orbit index, or plot them all
 INDEX_2 = 3 # choose orbit index, or plot them all
 
@@ -140,7 +148,7 @@ PF_LINEWIDTH = 0.7
 
 ODE_SOLVER_PRECISION = 1000 # high = more precise
 
-CONTINUOUS_TIME_HORIZON_ENTROPIC = 20 # Max time for dynamical system ODE solver, replicator dynamics
+CONTINUOUS_TIME_HORIZON_ENTROPIC = 20 # Max time for dynamical system ODE solver, dual averaging dynamics
 CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solver, Euclidean dynamics. Small bc usually hits boundary fast.
 
 # ------------------------------------------------
@@ -252,16 +260,29 @@ class Game22():
     ## Metrics
     # --------------------------------------------------------------------
     def sha_inv(self, var):
+        # Inverse of second derivative of regularizer in entropic (replicator, Shahshahani) case; build dynamics as x' = V#(x)
+        # Deprecated in favor of more general h_double_prime approach
+        pass
+        # return np.array( [xi - xi**2 for xi in var] )
 
-        return np.array( [xi - xi**2 for xi in var] )
+    def h_double_prime(self, var):
+
+        # Second derivative of regularizer; build dynamics as x' = V(x) / h''(x)
+
+        return np.array( [ xi**(Q_ENTROPY_PARAMETER - 2) + (1-xi)**(Q_ENTROPY_PARAMETER - 2) for xi in var] )
+
 
     # --------------------------------------------------------------------
-    ## Replicator dynamics continuous time
+    ## Dual averaging continuous time
     # --------------------------------------------------------------------
 
 
-    def RD(self, var, t):
-        return  self.sha_inv(var) * self.payfield(var)
+    def DA(self, var, t):
+
+        # Deprecated in favor of more general h_double_prime approach
+        # return  self.sha_inv(var) * self.payfield(var)
+
+        return self.payfield(var) / self.h_double_prime(var)
 
     # --------------------------------------------------------------------
     ## Payfield Flow (NOT equivalent to euclidean dynamics, payfield leaves feasible space rather than being projected onto.
@@ -278,7 +299,7 @@ class Game22():
 
 
     # --------------------------------------------------------------------
-    ## FTRL+ (discrete time), entropic regularizer. Here x is primal variable and y dual variable. Extra-gradient variant (two gradient queries per step)
+    ## DA+ (discrete time), entropic regularizer. Here x is primal variable and y dual variable. Extra-gradient variant (two gradient queries per step)
     # --------------------------------------------------------------------
 
     def entropic_prox(self, x, y,  step):
@@ -323,7 +344,7 @@ class Game22():
         return x1, x2
 
     # --------------------------------------------------------------------
-    ## Vanilla FTRL (discrete time), Euclidean regularizer. Here x is FULL primal variable and y FULL dual variable. Must work in full coordinates to project on simplex. <--------- #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR --------------------------------------------------
+    ## Vanilla DA (discrete time), Euclidean regularizer. Here x is FULL primal variable and y FULL dual variable. Must work in full coordinates to project on simplex. <--------- #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR --------------------------------------------------
     # --------------------------------------------------------------------
 
     # def projection_simplex(self, v, z=1):
@@ -581,8 +602,8 @@ class Game22():
 
         Y1, Y2 = np.meshgrid(y1, y2)
 
-        # Replicator dynamics, continuous time
-        RD = self.RD((Y1, Y2), 0)
+        # dual averaging dynamics, continuous time
+        DA = self.DA((Y1, Y2), 0)
 
 
         # Payfield on grid
@@ -599,9 +620,9 @@ class Game22():
         # ax.quiver(Y1, Y2, *RD1, scale=2.5, color = PLAYER_1_COLOR, width=0.005, headlength=5)
         # ax.quiver(Y1, Y2, *RD2, scale=2.5, color = PLAYER_2_COLOR, width=0.005, headlength=5)
 
-        # Quiver replicator field
+        # Quiver dual averaging field
         if QUIVER_RD:
-            ax.quiver(Y1, Y2, *RD, scale = scale, color = REPLICATOR_COLOR, width=0.003, headlength=3)
+            ax.quiver(Y1, Y2, *DA, scale = scale, color = REPLICATOR_COLOR, width=0.003, headlength=3)
         
         # Quiver payoff field
         if QUIVER_PAYFIELD:
@@ -627,12 +648,12 @@ class Game22():
         legend_elements =  [matplotlib.lines.Line2D([0], [0], color= PAYFIELD_COLOR, label = PAYOFF_FIELD_LABEL)] 
 
 
-        # extra gradient entropic ftrl
+        # extra gradient entropic DA
         if PLOT_EXTRA_FTRL:
 
             # pick an initial point
             initial_point = np.array([ y1[1], y2[3] ])
-            print(f'Initial point of extra ftrl: {initial_point}')
+            print(f'Initial point of extra DA: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
             EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, STEP_SIZE )
             nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
@@ -641,21 +662,21 @@ class Game22():
             # plt.scatter( [nash_x], [nash_y], color = 'black', s = 10 )
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = EXTRA_COLOR, label=EXTRAPOLATION_LABEL + ENTROPIC_LABEL)]  )
 
-        # vanilla entropic ftrl
+        # vanilla entropic DA
         if PLOT_ENTROPIC_VANILLA_FTRL:
             initial_point = np.array([ y1[1], y2[3] ])
-            print(f'Initial point of entropic vanilla ftrl: {initial_point}')
+            print(f'Initial point of entropic vanilla DA: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
             vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, 0.02 )
             plt.plot(*vanilla_entropic_ftrl_trajectory, color = VANILLA_COLOR, linewidth = 0.7, label = VANILLA_LABEL + ENTROPIC_LABEL)
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = VANILLA_COLOR, label = VANILLA_LABEL  + ENTROPIC_LABEL)]  )
 
 
-         # vanilla euclidean ftrl (to check)
+         # vanilla euclidean DA (to check)
         # if PLOT_EUCLIDEAN_VANILLA_FTRL:
             
         #     initial_point = np.array([ y1[1], 1-y1[1], y2[3], 1-y2[3] ])
-        #     print(f'Initial point of euclidean vanilla ftrl: {initial_point}')
+        #     print(f'Initial point of euclidean vanilla DA: {initial_point}')
         #     plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
         #     print(initial_point)
         #     plt.scatter(initial_point[0], initial_point[2], color = 'black')
@@ -695,10 +716,10 @@ class Game22():
 
         # start = [ [y1[ INDEX_1 ],y2[INDEX_2]]  ]
 
-        # Replicator
-        if PLOT_CONTINUOUS_RD:
-            ax.plot(*zip(*odeint(self.RD, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
-            [ ax.plot(*zip(*odeint(self.RD, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
+        # dual averaging
+        if PLOT_CONTINUOUS_DA:
+            ax.plot(*zip(*odeint(self.DA, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
+            [ ax.plot(*zip(*odeint(self.DA, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
             legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = REPLICATOR_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
 
         # Euclidean
@@ -769,7 +790,7 @@ class Game22():
             try:
                 ax.scatter( *self.zero_of_payfield, color = PAYFIELD_COLOR, zorder=10, s = 60)
 
-                # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra FTRL cover it
+                # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra DA cover it
                 legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = PAYFIELD_COLOR, label = ZERO_PF_LABEL, linestyle = '', marker = 'o' )] )
 
             except:
@@ -822,17 +843,17 @@ class Game22():
 # # --------------------------------------------------------
 # # Matching pennies
 # # --------------------------------------------------------
-# def u1( vas ):
-#     x1, x2 = vas
-#     return 4 * x1 * x2 - 2 * (x1 + x2) + 1
+def u1( vas ):
+    x1, x2 = vas
+    return 4 * x1 * x2 - 2 * (x1 + x2) + 1
 
-# def u2( vas ):
-#     x1, x2 = vas
-#     return -(4 * x1 * x2 - 2 * (x1 + x2) + 1)
+def u2( vas ):
+    x1, x2 = vas
+    return -(4 * x1 * x2 - 2 * (x1 + x2) + 1)
 
-# def v ( vas ):
-#     x1, x2 = vas
-#     return np.array( [ 4 * x2 - 2, 2 - 4 * x1 ] )
+def v ( vas ):
+    x1, x2 = vas
+    return np.array( [ 4 * x2 - 2, 2 - 4 * x1 ] )
 # # # --------------------------------------------------------
 
 # # # --------------------------------------------------------
@@ -910,22 +931,22 @@ if (2 * c1 - 1 < c2 < 2 * c1 + 2) and (2 * c2 - 1 < c1 < 2 * c2 + 2):
 else:
     info_eq = 'No interior equilibrium'
 
-def u1( vas ):
-    x1, x2 = vas
-    return x1 * (1 - x1 - x2) - c1 * x1
+# def u1( vas ):
+#     x1, x2 = vas
+#     return x1 * (1 - x1 - x2) - c1 * x1
 
-def u2( vas ):
-    x1, x2 = vas
-    return x2 * (1 - x1 - x2) - c2 * x2
+# def u2( vas ):
+#     x1, x2 = vas
+#     return x2 * (1 - x1 - x2) - c2 * x2
 
 
-def v( vas ):
-    x1, x2 = vas
-    return np.array( [ 1 - c1 - 2 * x1 - x2, 1 - c2 - 2 * x2 - x1] )
+# def v( vas ):
+#     x1, x2 = vas
+#     return np.array( [ 1 - c1 - 2 * x1 - x2, 1 - c2 - 2 * x2 - x1] )
 
-def pot( vas ):
-    x1, x2 = vas
-    return x1 * (1 - c1) + x2 * (1 - c2) - x1**2 - x2**2 - x1*x2
+# def pot( vas ):
+#     x1, x2 = vas
+#     return x1 * (1 - c1) + x2 * (1 - c2) - x1**2 - x2**2 - x1*x2
 # --------------------------------------------------------
 
 
