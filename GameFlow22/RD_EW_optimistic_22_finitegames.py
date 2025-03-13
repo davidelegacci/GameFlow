@@ -73,7 +73,7 @@ INITIAL_POINT_COLOR = 'crimson'
 # ------------------------------------------------
 CONTINUOUS_TIME_LABEL = 'FTRL-D'
 EXTRAPOLATION_LABEL = 'FTRL+'
-VANILLA_LABEL = 'FTRL'
+VANILLA_LABEL = 'vanilla FTRL discrete'
 PAYOFF_FIELD_LABEL = 'Payoff field'
 
 ENTROPIC_LABEL = ' (entropic)'
@@ -125,7 +125,7 @@ PLOT_SEGMENT_PERPENDICULAR_HARMONIC_CENTER = 0
 # ------------------------------------------------
 ## Continuous time dynamics
 # ------------------------------------------------
-SOLVE_ODE = 1
+SOLVE_ODE = 0
 PLOT_CONTINUOUS_RD = 1
 INDEX_1 = 1 #4 # choose orbit index, or plot them all
 INDEX_2 = 3 # choose orbit index, or plot them all
@@ -144,11 +144,18 @@ CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solv
 ## Discrete time dynamics
 # ------------------------------------------------
 
+
+# FEEDBACK_TYPE = "mixed_vector"                                                          # <---------------------------------------------------------- to check feedback types
+# FEEDBACK_TYPE = "pure_vector"
+FEEDBACK_TYPE = "bandit"
+VANILLA_LABEL += f', {FEEDBACK_TYPE} feedback'
+
 # entropic
-PLOT_ENTROPIC_VANILLA_FTRL = 0
+PLOT_ENTROPIC_VANILLA_FTRL = 1
 PLOT_EXTRA_FTRL = 0
 
-STEP_SIZE = 0.3
+EXTRA_FTRL_STEP_SIZE = 0.3
+VANILLA_FTRL_STEPSIZE = 0.05
 EXTRA_FTRL_LINEWIDTH = 1.5
 
 # euclidean; not sure it's correct ! careful !
@@ -411,7 +418,38 @@ class Game22():
         step = initial_step
 
         for t in range(1,num_iterations):
-            x = self.entropic_prox(x, self.payfield(*x), step)     # main step
+
+            # main step; take if out of for loop...
+
+            if FEEDBACK_TYPE == "mixed_vector":
+                oracle = self.payfield(*x)
+
+            elif FEEDBACK_TYPE == "pure_vector":
+                probabilities = [ [ 1-x1, x1 ] for x1 in x ]
+                pure = np.array([ np.random.choice( [0,1], p = pi) for pi in probabilities ])
+                oracle = self.payfield(*pure)
+
+            elif FEEDBACK_TYPE == "bandit":
+                # ugly implementation of importance weighted estimator, to check
+                probabilities = [ [ 1-x1, x1 ] for x1 in x ]
+                pure_1, pure_2 = np.array([ np.random.choice( [0,1], p = pi) for pi in probabilities ])
+                pay = [ self.u_pure[i][pure_1][pure_2] for i in self.players ]
+
+                IWE = [ [0,0], [0,0] ]
+                IWE[0][pure_1] = pay[0] / probabilities[0][pure_1]
+                IWE[1][pure_2] = pay[1] / probabilities[1][pure_2]
+                oracle = np.array( [iwe[-1] for iwe in IWE ])
+
+
+
+
+            else:
+                raise Exception("Invalid feedback type")
+
+
+            x = self.entropic_prox(x, oracle, step)
+
+
             trajectory.append(x)
             # step = step / t                  # update step size
 
@@ -697,7 +735,7 @@ class Game22():
             initial_point = np.array([ y1[1], y2[3] ])
             print(f'Initial point of extra ftrl: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
-            EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, STEP_SIZE )
+            EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, EXTRA_FTRL_STEP_SIZE )
             nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
 
             plt.plot(*EGMD, color = EXTRA_COLOR,  linewidth = EXTRA_FTRL_LINEWIDTH, label = EXTRAPOLATION_LABEL + ENTROPIC_LABEL)
@@ -706,10 +744,11 @@ class Game22():
 
         # vanilla entropic ftrl
         if PLOT_ENTROPIC_VANILLA_FTRL:
-            initial_point = np.array([ y1[1], y2[3] ])
+            # initial_point = np.array([ y1[1], y2[3] ])
+            initial_point = np.random.rand(2)
             print(f'Initial point of entropic vanilla ftrl: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
-            vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, 0.02 )
+            vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, VANILLA_FTRL_STEPSIZE )
             plt.plot(*vanilla_entropic_ftrl_trajectory, color = VANILLA_COLOR, linewidth = 0.7, label = VANILLA_LABEL + ENTROPIC_LABEL)
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = VANILLA_COLOR, label = VANILLA_LABEL  + ENTROPIC_LABEL)]  )
 
@@ -1137,7 +1176,7 @@ class Game22():
 # --------------------------------
 
 # coordination
-# payoff = [5, 1, 1, 4, 5, 1, 1, 4]
+payoff = [5, 1, 1, 4, 5, 1, 1, 4]
 
 # anti-coordination
 # payoff = [1, 5, 4, 1, 1, 4, 5, 1]
@@ -1246,6 +1285,8 @@ pot_bottom = pot_AA - pot_BA
 
 """payoff realizing such deviations, 4 dofs (alpha, beta, gamma, delta); 4 constrained"""
 # payoff = [alpha, delta, alpha - pot_bottom, delta + pot_top, beta, beta - pot_left , gamma, gamma + pot_right]
+G = Game22(payoff, 'sha', game_type = '',  game_name = 'coordination_oracle_feedback', pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB], strategies_labels = [ ['A', 'B'], ['C', 'D'] ] )
+print(G.payoff)
 # --------------------------------------------------
 # End potential 2x2 game
 # --------------------------------------------------
@@ -1261,7 +1302,7 @@ pot_bottom = pot_AA - pot_BA
 
 
 # boundary garmonic
-u = [9, -7, -1, -2, -2, -2, 2, -3]
+# u = [9, -7, -1, -2, -2, -2, 2, -3]
 # payoff = [-6, 9, 4, 4, 2, 2, -4, 1]
 
 
@@ -1270,7 +1311,7 @@ u = [9, -7, -1, -2, -2, -2, 2, -3]
 # G = Game22(u, 'sha', game_type = 'potential',  game_name = 'potential pure non strict NE', strategies_labels = [ ['L', 'R'], ['B', 'T'] ], pure_potential_function = [0, 1, 1, 1] )
 
 # u =  [0, 1, 5, 6, 6, 1, 5, 0]
-G = Game22(u, 'sha', game_type = '',  game_name = 'pot', strategies_labels = [ ['L', 'R'], ['B', 'T'] ] )
+# G = Game22(u, 'sha', game_type = '',  game_name = 'pot', strategies_labels = [ ['L', 'R'], ['B', 'T'] ] )
 
 
 
@@ -1321,9 +1362,8 @@ game_directory = f'{root}/{G.game_name}'
 current_directory = f'{game_directory}/{time.time()}'
 
 utils.make_folder(current_directory)
-
 plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
-utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', u)
+utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.u)
 utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
 
 
