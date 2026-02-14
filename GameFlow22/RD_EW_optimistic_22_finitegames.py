@@ -11,13 +11,14 @@ WHAT IT DOES
 1. Continuous time FTRL with entropic regularizer (replicator dynamics)
 2. Continuous time FTRL with euclidean regularizer (Euclidean projection dynamics)              <---------------   #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR    --------------------------------- to check, sharp reduced euclidean metric is NOT identity, cf icml appendix and my notes. Might be missing factor.
 
-3. Discrete time vanilla FTRL    with euclidean regularizer (Euclidean projection algorithm)    <---------------   #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR    --------------------------------- to check, weird behavior in Prisoner'd Dilemma, 45 degrees in "wrong" direction
-4. Discrete time vanilla FTRL    with entropic  regularizer (Euclidean projection algorithm)
-5. Discrete time         FTRL+   with entropic  regularizer (exponential weights) in extra-gradient variant (not optimistic, two vector queries per step)
+3. Discrete time vanilla  FTRL    with euclidean regularizer (Euclidean projection algorithm)    <---------------   #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR    --------------------------------- to check, weird behavior in Prisoner'd Dilemma, 45 degrees in "wrong" direction
+4. Discrete time vanilla  FTRL    with entropic  regularizer (Euclidean projection algorithm)
+5. Discrete time          FTRL+   with entropic  regularizer (exponential weights) in extra-gradient variant (not optimistic, two vector queries per step)
+6. Discrete time adaptive FTRL+   with entropic  regularizer (exponential weights) in template variant (convex combo of extra-gradient and optimistic)
 
 # TO DO
 
--  #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR
+- #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR
 - #TO-DO-EUCLIDEAN-DISCRETE-ANCHOR
 - global careful check and cleanup!
 - once all clean, make "the pedagogical drawing", as would use to explain game dynamcis to dad; cf vocal memo
@@ -39,7 +40,7 @@ import time
 # ------------------------------------------------
 ## Grid density
 # ------------------------------------------------
-GRID_DENSITY =  6 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
+GRID_DENSITY =  9 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
 
 # If needed, fine-tune for side-to-side potential-harmonic plots
 GRID_DENSITY_POTENTIAL =  GRID_DENSITY # Number of trajectories = square of this number; 9 is cool because grid coincides with contours intersections, but it's a bit too dense
@@ -52,18 +53,19 @@ GRID_DENSITY_HARMONIC = GRID_DENSITY  # Number of trajectories = square of this 
 PLAYER_1_COLOR = 'black'
 PLAYER_2_COLOR = 'black'
 
-REPLICATOR_COLOR = 'white'
-PAYFIELD_COLOR = 'black'
+REPLICATOR_COLOR = 'black'
+PAYFIELD_COLOR = 'white'
 
-VANILLA_COLOR = 'white'
+VANILLA_COLOR = 'purple'
 EXTRA_COLOR = 'red'
+ADA_EXTRA_COLOR = 'white'
 
 EUCLIDEAN_COLOR = 'crimson'
 
 POTENTIAL_FUNCTION_COLOR = 'red'
 
 NE_COLOR = 'crimson'
-INITIAL_POINT_COLOR = 'crimson'
+INITIAL_POINT_COLOR = 'purple'
 
 
 
@@ -73,6 +75,7 @@ INITIAL_POINT_COLOR = 'crimson'
 # ------------------------------------------------
 CONTINUOUS_TIME_LABEL = 'FTRL-D'
 EXTRAPOLATION_LABEL = 'FTRL+'
+ADA_EXTRAPOLATION_LABEL = 'AdaFTRL+'
 VANILLA_LABEL = 'vanilla FTRL discrete'
 PAYOFF_FIELD_LABEL = 'Payoff field'
 
@@ -84,8 +87,8 @@ NE_LABEL = "NE"
 
 INCLUDE_LEGEND = 1
 INCLUDE_AXES_LABELS = 1
-INCLUDE_TITLE = True
-AXES_LABEL_FONT_SIZE = 8
+INCLUDE_TITLE = 1
+AXES_LABEL_FONT_SIZE = 15
 
 # ------------------------------------------------
 ## Contours
@@ -97,7 +100,7 @@ PLOT_CONTOURS = 1 # Global contours switch
 PLOT_CONTOURS_FIRST_PLAYER = 1
 PLOT_CONTOURS_SECOND_PLAYER = 0
 
-PLOT_CONTOURS_POTENTIAL_FUNCTION = 1
+PLOT_CONTOURS_POTENTIAL_FUNCTION = 0
 
 PLOT_FILLED_CONTOURS_FIRST_PLAYER = 1
 ADD_COLORBAR = 0
@@ -109,11 +112,11 @@ FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels, higher = smoothe
 # ------------------------------------------------
 ## Quivers
 # ------------------------------------------------
-QUIVER_PAYFIELD = 1
+QUIVER_PAYFIELD = 0
 QUIVER_INDIVIDUAL_PAYFIELD = 0
-QUIVER_RD = 0
+QUIVER_RD = 1
 
-QUIVER_SCALE = 6 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
+QUIVER_SCALE = 7 # Scaling for quiver plots; high number = short arrow RD is scaled by this number, payfield is scaled by this number SQUARED
 
 # Finetune for potential and harmonic cases if needed
 QUIVER_SCALE_POTENTIAL = QUIVER_SCALE # How much smaller potential arrows are then computed number
@@ -142,17 +145,27 @@ CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solv
 
 # ------------------------------------------------
 ## Discrete time dynamics
+# At the moment discrete plotting routine is inside quiver function; if all quiver boolean are false, discrete routine will not trigger. 
+# #TO-DO separate plotting routine
 # ------------------------------------------------
 
-
-# FEEDBACK_TYPE = "mixed_vector"                                                          # <---------------------------------------------------------- to check feedback types
+## ------------------------------------------------
+## At the momentFeedback type affects only VANILLA ftrl
+# #TO-DO check feedback types and extend to all modes
+## ------------------------------------------------
+FEEDBACK_TYPE = "mixed_vector"                                                          # <---------------------------------------------------------- to check feedback types
 # FEEDBACK_TYPE = "pure_vector"
-FEEDBACK_TYPE = "bandit"
+# FEEDBACK_TYPE = "bandit"
+
 VANILLA_LABEL += f', {FEEDBACK_TYPE} feedback'
 
 # entropic
-PLOT_ENTROPIC_VANILLA_FTRL = 1
-PLOT_EXTRA_FTRL = 0
+PLOT_ENTROPIC_VANILLA_FTRL = 0
+
+PLOT_EXTRA_FTRL = 1
+
+PLOT_ADA_EXTRA_FTRL = 1
+ADA_FTRL_COEF = np.array([1, 1]) # signal coefficient in [0,1], 0 = optimistic, 1 = extra-gradient. One per player, can be different
 
 EXTRA_FTRL_STEP_SIZE = 0.3
 VANILLA_FTRL_STEPSIZE = 0.05
@@ -403,12 +416,106 @@ class Game22():
             x_lead = self.entropic_prox(x, self.payfield(*x), step)     # extrapolation step
             x = self.entropic_prox(x, self.payfield(*x_lead), step)     # main step
             trajectory.append(x)
-            # step = step / t                  # update step size
+            # step = step / np.sqrt(t)                  # update step size
 
         x1 = [x[0] for x in trajectory]
         x2 = [x[1] for x in trajectory]
 
         return x1, x2
+
+
+    ## ------------------------------------------------
+    ## 2026-02-14 AdaExtraFTRL
+    ## Everything in effective coordinates
+    ## ------------------------------------------------
+
+    # effective mirror map, entropic; ok for both all players using it and different players using different reg
+    def mirrori_ent(self, y):
+        return np.exp(y) / (1 + np.exp(y)  ) # entropic
+
+
+    # effective mirror map, euclidean, vectorized; ok if all players use it, not good format if different players use different regularizers
+    def mirrori_eu_vectorized(self, y):
+        return np.array([max(0, min(1, yi)) for yi in y]) # euclidean
+
+    # effective mirror map, euclidean, scalar
+    def mirrori_eu(self, y):
+        return max(0, min(1, y))  # euclidean
+
+    # signal as convex combo of extra-gradient and optimistic
+    def make_signal(self, coef, v_curr, v_beforelead):
+        return coef * v_curr + (1 - coef) * v_beforelead
+
+    def adaFTRLplus(self, y_1, nRuns, eta_1 , v_half , coef ):
+
+        "y_1 = np.array([a, b])"
+
+        mirror = [self.mirrori_eu, self.mirrori_ent] # different players can use different regularizers
+        
+        # x_1 = self.mirrori(eta_1 * y_1) # all players using same mirror
+        x_1 = np.array([ mirror[i]( y_1[i] * eta_1[i] ) for i in range(2) ]) # players using different regularizers
+
+
+        v_1 = self.payfield(*x_1)
+        signal_1 = self.make_signal(coef, v_1, v_half) 
+        t = 1
+
+        y_curr = y_1
+        eta_curr = eta_1
+
+        x_curr = x_1
+        v_curr = v_1
+        signal_curr = signal_1
+
+        y_lead = np.zeros(2)
+        x_lead = np.zeros(2)
+        v_lead = np.zeros(2)
+        g_sum_curr = np.zeros(2)
+        
+        lead_sequence = []
+        
+        
+        while t <= nRuns:
+
+            y_lead = y_curr + signal_curr
+
+            # x_lead = self.mirrori( eta_curr * y_lead ) # all players same regularizers
+            x_lead = np.array([ mirror[i]( y_lead[i] * eta_curr[i] ) for i in range(2) ]) # players using different regularizers
+
+            lead_sequence.append(x_lead)
+            
+            v_lead = self.payfield(*x_lead)
+            
+
+            g_curr = v_lead - signal_curr
+            
+            #g_sum_curr += (npla.norm( g_curr, ord = np.inf ))**2 # no norm needed, g is 1-dimensional for each player
+            g_sum_curr += g_curr * g_curr
+            
+            eta_next = (1 + g_sum_curr)**(-1/2)
+            y_next = y_curr + v_lead
+
+            # x_next = self.mirrori( eta_next * y_next ) # all players using same regularizer
+            x_next = np.array([ mirror[i]( y_next[i] * eta_next[i] ) for i in range(2) ]) # players using different regularizers
+
+
+            v_next = self.payfield(*x_next)
+            signal_next = self.make_signal(coef, v_next, v_lead)
+        
+            t+=1
+
+            y_curr = y_next
+            eta_curr = eta_next
+            signal_curr = signal_next
+            
+            
+        x0 = [x[0] for x in lead_sequence]
+        x1 = [x[1] for x in lead_sequence]
+
+        return x0, x1
+
+    ## ------------------------------------------------
+
 
 
     def vanilla_entropic_ftrl(self, x0, num_iterations, initial_step):
@@ -736,21 +843,44 @@ class Game22():
             print(f'Initial point of extra ftrl: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
             EGMD = self.extra_ftrl( initial_point, TIMESTEPS_EXTRA_FTRL, EXTRA_FTRL_STEP_SIZE )
-            nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
+            # nash_x, nash_y = EGMD[0][-1], EGMD[1][-1]
 
             plt.plot(*EGMD, color = EXTRA_COLOR,  linewidth = EXTRA_FTRL_LINEWIDTH, label = EXTRAPOLATION_LABEL + ENTROPIC_LABEL)
             # plt.scatter( [nash_x], [nash_y], color = 'black', s = 10 )
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = EXTRA_COLOR, label=EXTRAPOLATION_LABEL + ENTROPIC_LABEL)]  )
 
+        # adaptive extra entropic ftrl
+        if PLOT_ADA_EXTRA_FTRL:
+
+            # pick an initial point
+            initial_point = np.array([ y1[1], y2[3] ])
+            print(f'Initial point of extra ftrl: {initial_point}')
+            plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
+            ADA_EXTRA_FTRL = self.adaFTRLplus(initial_point, TIMESTEPS_EXTRA_FTRL, eta_1 = np.ones(2), v_half = np.zeros(2), coef = ADA_FTRL_COEF  )
+            # nash_x, nash_y = ADA_EXTRA_FTRL[0][-1], ADA_EXTRA_FTRL[1][-1]
+
+            plt.plot(*ADA_EXTRA_FTRL, color = ADA_EXTRA_COLOR,  linewidth = EXTRA_FTRL_LINEWIDTH, label = ADA_EXTRAPOLATION_LABEL + ENTROPIC_LABEL, zorder = 100)
+            # plt.scatter( [nash_x], [nash_y], color = 'black', s = 10 )
+            legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = ADA_EXTRA_COLOR, label= ADA_EXTRAPOLATION_LABEL + ENTROPIC_LABEL)]  )
+
         # vanilla entropic ftrl
         if PLOT_ENTROPIC_VANILLA_FTRL:
-            # initial_point = np.array([ y1[1], y2[3] ])
-            initial_point = np.random.rand(2)
-            print(f'Initial point of entropic vanilla ftrl: {initial_point}')
-            plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
-            vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, VANILLA_FTRL_STEPSIZE )
+            # initial_points = [np.array([ y1[1], y2[3] ])]
+            #initial_points = [np.random.rand(2)]
+            initial_points = [ [a,b] for a in y1[1:-1] for b in y2[1:-1] ]
+
+            # print(f'Initial point of entropic vanilla ftrl: {initial_point}')
+            plt.scatter(*initial_points[0], color = INITIAL_POINT_COLOR, s = 20)
+            vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_points[0], TIMESTEPS_VANILLA_FTRL, VANILLA_FTRL_STEPSIZE )
             plt.plot(*vanilla_entropic_ftrl_trajectory, color = VANILLA_COLOR, linewidth = 0.7, label = VANILLA_LABEL + ENTROPIC_LABEL)
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = VANILLA_COLOR, label = VANILLA_LABEL  + ENTROPIC_LABEL)]  )
+
+            for initial_point in initial_points[1:]:
+                # print(f'Initial point of entropic vanilla ftrl: {initial_point}')
+                # plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
+                vanilla_entropic_ftrl_trajectory = self.vanilla_entropic_ftrl( initial_point, TIMESTEPS_VANILLA_FTRL, VANILLA_FTRL_STEPSIZE )
+                plt.plot(*vanilla_entropic_ftrl_trajectory, color = VANILLA_COLOR, linewidth = 0.7, label = VANILLA_LABEL + ENTROPIC_LABEL)
+                # legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = VANILLA_COLOR, label = VANILLA_LABEL  + ENTROPIC_LABEL)]  )
 
 
          # vanilla euclidean ftrl (to check)
@@ -829,14 +959,16 @@ class Game22():
         if SOLVE_ODE:
             legend_elements.extend(self.ode_plot(ax))
 
-        if QUIVER_PAYFIELD:
+        if QUIVER_PAYFIELD or QUIVER_RD:
             legend_elements_quiver, GRID_1, GRID_2 = self.quiver_RD_plot(ax)
             legend_elements.extend(legend_elements_quiver)
 
 
         if INCLUDE_AXES_LABELS:
-            ax.set_xlabel(f'Prob. player 1 assigns to {self.strategies_labels[0][1]} in {{{self.strategies_labels[0][0]}, {self.strategies_labels[0][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
-            ax.set_ylabel(f'Prob. player 2 assigns to {self.strategies_labels[1][1]} in {{{self.strategies_labels[1][0]}, {self.strategies_labels[1][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
+            # ax.set_xlabel(f'Prob. player 1 assigns to {self.strategies_labels[0][1]} in {{{self.strategies_labels[0][0]}, {self.strategies_labels[0][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
+            # ax.set_ylabel(f'Prob. player 2 assigns to {self.strategies_labels[1][1]} in {{{self.strategies_labels[1][0]}, {self.strategies_labels[1][1]}}}', fontsize=AXES_LABEL_FONT_SIZE)
+            ax.set_xlabel("Player 1's strategy", fontsize=AXES_LABEL_FONT_SIZE)
+            ax.set_ylabel("Player 2's strategy", fontsize=AXES_LABEL_FONT_SIZE)
 
 
         # ax.set_title(f'Shahshahani vs. Euclidean individual gradient ascent \n $2 \\times 2$ {self.game_name} - {self.game_type}', fontsize = '9')
@@ -1171,12 +1303,34 @@ class Game22():
 # chicken
 # payoff = [-5, 2, 1, 0, -5, 1, 2, 0]
 
+# random
+# payoff = [3.5785, 5.6861, 5.0662, 0.3743, 4.9509, 2.247, 5.93, 3.9676]
+
+# pot
+# payoff =  [0.1988, 1.7133, -0.1988, -1.7133, 0.4093, -0.4093, 1.9238, -1.9238]
+
+# harm
+# payoff = [-0.9426, 0.9426, 0.9426, -0.9426, 0.9426, -0.9426, -0.9426, 0.9426]
+
+
+
+
 # --------------------------------
 # https://arxiv.org/pdf/1701.09043
 # --------------------------------
 
+
 # coordination
-payoff = [5, 1, 1, 4, 5, 1, 1, 4]
+# payoff = [5, 1, 1, 4, 5, 1, 1, 4]
+
+
+## ------------------------------------------------
+# # potential component
+# payoff = 0
+
+# #  harmonic component
+# payoff = 0
+## ------------------------------------------------
 
 # anti-coordination
 # payoff = [1, 5, 4, 1, 1, 4, 5, 1]
@@ -1204,7 +1358,7 @@ payoff = [5, 1, 1, 4, 5, 1, 1, 4]
 # Equivalently, changes inner product underpinning notion of harmonicity
 
 # Candogan harmonic:
-MU = [ [ 0, 1 ], [ 1, 1 ]  ]
+# MU = [ [ 1, 1 ], [ 1, 1 ]  ]
 
 # MU = [ [ 1, 2 ], [ 1, 1 ]  ]
 
@@ -1221,14 +1375,14 @@ MU = [ [ 0, 1 ], [ 1, 1 ]  ]
 
 # -----------------------------
 # Standard Matching pennies
-left = 2
+# left = 2
 # -----------------------------
 # left = 1
 # -----------------------------
 # Constrained deviations
-right = MU[0][0] / MU[0][1] * left
-top = MU[1][0] / MU[0][1] * left
-bottom = MU[1][1] / MU[0][1] * left
+# right = MU[0][0] / MU[0][1] * left
+# top = MU[1][0] / MU[0][1] * left
+# bottom = MU[1][1] / MU[0][1] * left
 ####################################
 
 # --------------------------------------------------
@@ -1248,10 +1402,10 @@ bottom = MU[1][1] / MU[0][1] * left
 # gamma = -1
 # delta = -1
 # -----------------------------
-alpha = +1
-beta = -1
-gamma = -1
-delta = -1
+# alpha = +1
+# beta = -1
+# gamma = -1
+# delta = -1
 # -----------------------------
 
 # HARMONIC PAYOFF
@@ -1270,23 +1424,27 @@ delta = -1
 # --------------------------------------------------
 
 """potential function, 4 dofs"""
-pot_AA = 0
-pot_AB = 1
-pot_BA = 1
-pot_BB = 2
+pot_AA = 2
+pot_AB = 0
+pot_BA = 0
+pot_BB = 0
 
 # Feed to game instance : pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB]
 
 """deviations fulfilling potential constraint, all fixed"""
-pot_left = pot_AA - pot_AB
-pot_right = pot_BB - pot_BA
-pot_top = pot_BB - pot_AB
-pot_bottom = pot_AA - pot_BA
+# pot_left = pot_AA - pot_AB
+# pot_right = pot_BB - pot_BA
+# pot_top = pot_BB - pot_AB
+# pot_bottom = pot_AA - pot_BA
 
 """payoff realizing such deviations, 4 dofs (alpha, beta, gamma, delta); 4 constrained"""
 # payoff = [alpha, delta, alpha - pot_bottom, delta + pot_top, beta, beta - pot_left , gamma, gamma + pot_right]
-G = Game22(payoff, 'sha', game_type = '',  game_name = 'coordination_oracle_feedback', pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB], strategies_labels = [ ['A', 'B'], ['C', 'D'] ] )
-print(G.payoff)
+
+# weak MVI
+# payoff = [1, 0, -1, 1, 0, 1, -1, 1]
+
+# G = Game22(payoff, 'sha', game_type = '',  game_name = '', pure_potential_function = [], strategies_labels = [ ['A', 'B'], ['C', 'D'] ] )
+# print(G.payoff)
 # --------------------------------------------------
 # End potential 2x2 game
 # --------------------------------------------------
@@ -1296,8 +1454,8 @@ print(G.payoff)
 ## Game instance
 # --------------------------------------------------------
 # assedio
-# payoff = [-3, 2, 0, 0, 1, -4, -1, 0]
-# G = Game22(payoff, 'sha', game_type = '',  game_name = 'extra_ftrl_22_siege_thumbnail', pure_potential_function = [pot_AA, pot_AB, pot_BA, pot_BB], strategies_labels = [ ['A', 'N'], ['D', 'N'] ] )
+payoff = [-3, 2, 0, 0, 1, -4, -1, 0]
+G = Game22(payoff, 'sha', game_type = '',  game_name = 'AdaExtraFTRL_harmonic', pure_potential_function = 0, strategies_labels = [ ['A', 'N'], ['D', 'N'] ] )
 
 
 
@@ -1313,6 +1471,15 @@ print(G.payoff)
 # u =  [0, 1, 5, 6, 6, 1, 5, 0]
 # G = Game22(u, 'sha', game_type = '',  game_name = 'pot', strategies_labels = [ ['L', 'R'], ['B', 'T'] ] )
 
+
+## Entry deterrence
+#u =  [0, 2, 1, 1, 0, 2, 3, 3]
+#G = Game22(u, 'sha', game_type = '',  game_name = 'Entry Deterrence', strategies_labels = [ ['enter', 'out'], ['fight', 'yield'] ] )
+
+
+## 2x2 effectife Jv skew
+# u = [-2, -8, 3, -8, 5, 9, 1, 10]
+# G = Game22(u, 'sha', game_type = '',  game_name = 'Eff JV skew', strategies_labels = [ ['A', 'B'], ['C', 'D'] ] )
 
 
 # --------------------------------------------------------
@@ -1355,16 +1522,26 @@ G.full_plot(axs)
 # --------------------------------------------------------
 ## Save methods
 # --------------------------------------------------------
+SAVE = 0
 
-root = './Results/'
+if SAVE:
+    root = './Results/'
 
-game_directory = f'{root}/{G.game_name}'
-current_directory = f'{game_directory}/{time.time()}'
+    game_directory = f'{root}/{time.strftime("%Y-%m-%d")}-{G.game_name}'
+    current_directory = f'{game_directory}/{time.strftime("%Y-%m-%d-%H-%M-%S")}'
 
-utils.make_folder(current_directory)
-plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
-utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.u)
-utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
+    utils.make_folder(current_directory)
+    plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.payoff)
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
+    # Save this self file for config parameters
+    with open(__file__, 'r') as source_file:
+        content = source_file.read()
+
+    # Write the content to config.py
+    with open(f'{current_directory}/config.py', 'w') as target_file:
+        target_file.write(content)
+
 
 
 #####################################################

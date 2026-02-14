@@ -33,15 +33,19 @@ from scipy import optimize
 from aspera import utils
 from gamelab import finitegames
 import time
+import inspect # to print definition of functions
 
 # ------------------------------------------------
 ## PARAMETERS
 # ------------------------------------------------
 
+
+
 # ------------------------------------------------
 ## Grid density
 # ------------------------------------------------
 GRID_DENSITY =  9 # Number of initial conditions for continuous time trajectories, and points where payfield is quivered = square of this number
+MANUAL_POINTS = np.array( [0.05, 0.95] )  # manually chosen points to add to initial grid
 
 # If needed, fine-tune for side-to-side potential-harmonic plots
 GRID_DENSITY_POTENTIAL =  GRID_DENSITY # Number of trajectories = square of this number; 9 is cool because grid coincides with contours intersections, but it's a bit too dense
@@ -54,8 +58,8 @@ GRID_DENSITY_HARMONIC = GRID_DENSITY  # Number of trajectories = square of this 
 PLAYER_1_COLOR = 'black'
 PLAYER_2_COLOR = 'black'
 
-REPLICATOR_COLOR = 'red' #'white'
-PAYFIELD_COLOR = 'black'
+DUAL_AVERAGING_COLOR = 'black'
+PAYFIELD_COLOR = 'white'
 
 VANILLA_COLOR = 'red' #'white'
 EXTRA_COLOR = 'blue'
@@ -63,6 +67,7 @@ EXTRA_COLOR = 'blue'
 EUCLIDEAN_COLOR = 'crimson'
 
 POTENTIAL_FUNCTION_COLOR = 'red'
+SCALAR_FUNCTION_COLORS = ['red'] #, 'blue']
 
 PURE_NE_COLOR = 'cyan'
 INITIAL_POINT_COLOR = 'crimson'
@@ -81,14 +86,23 @@ PAYOFF_FIELD_LABEL = 'Payoff field'
 ENTROPIC_LABEL = ' (entropic)'
 EUCLIDEAN_LABEL = ' (euclidean)'
 
+SCALAR_FUNCTION_LABEL = 'Divergence'
+
 # NE_LABEL = "Strategic center"
 PURE_NE_LABEL = "pure NE"
 ZERO_PF_LABEL = "zero PF, implies NE"
 
-INCLUDE_LEGEND = 1
+INCLUDE_LEGEND = 0
 
-INCLUDE_TITLE = True
-AXES_LABEL_FONT_SIZE = 8
+INCLUDE_AXES_LABELS = 1
+AXES_LABEL_FONT_SIZE = 12
+
+INCLUDE_AXES_TICKS = 0
+AXES_TICKS_FONT_SIZE = 10
+
+INCLUDE_TITLE = 0
+
+
 
 # ------------------------------------------------
 ## Contours
@@ -98,25 +112,32 @@ PLOT_CONTOURS = 1 # Global contours switch
 
 # game type must not be potential to plot contours, can'r remember why... fix this
 PLOT_CONTOURS_FIRST_PLAYER = 1
+PLOT_FILLED_CONTOURS_FIRST_PLAYER = 1
+
 PLOT_CONTOURS_SECOND_PLAYER = 0
 
-PLOT_CONTOURS_POTENTIAL_FUNCTION = 1
+PLOT_CONTOURS_POTENTIAL_FUNCTION = 0
+PLOT_FILLED_CONTOURS_POTENTIAL_FUNCTION = 0
 
-PLOT_FILLED_CONTOURS_FIRST_PLAYER = 1
-ADD_COLORBAR = 1
+PLOT_CONTOURS_SCALAR_FUNCTION = 0
+PLOT_FILLED_CONTOURS_SCALAR_FUNCTION = 0
+
+ADD_COLORBAR = 0
+
 DISPLAY_PAYOFF_CONTOURS_VALUES = 0 # tag each contour line with corresponding value
 
-CONTOURS_DENSITY = 10 # number of contours lines
+CONTOURS_DENSITY = 15 # number of contours lines
 FILLED_CONTOUR_DENSITY = 100 # number of filled contour levels, higher = smoother shades transition
 
 # ------------------------------------------------
 ## Quivers
 # ------------------------------------------------
+MASTER_QUIVER_PLOT = 1
 QUIVER_PAYFIELD = 1
 QUIVER_INDIVIDUAL_PAYFIELD = 0
-QUIVER_RD = 0
+QUIVER_DA = 1
 
-QUIVER_SCALE = 6 # Scaling for quiver plots; high number = short arrow DA is scaled by this number, payfield is scaled by this number SQUARED
+QUIVER_SCALE = 5 # Scaling for quiver plots; high number = short arrow DA is scaled by this number, payfield is scaled by this number SQUARED
 
 # Finetune for potential and harmonic cases if needed
 QUIVER_SCALE_POTENTIAL = QUIVER_SCALE # How much smaller potential arrows are then computed number
@@ -186,7 +207,7 @@ PLOT_POLAR_CONES = 1
 ####################################################################################################
 
 class Game22():
-    def __init__(self, payfuncs, payfield, metric, game_name, game_type = '', potential_function = 0):
+    def __init__(self, payfuncs, payfield, metric, game_name, game_type = '', potential_function = 0, scalar_functions = 0):
 
         '''
         - all numpy functions take _one_ varible, array of size 2
@@ -225,6 +246,7 @@ class Game22():
         self.u1, self.u2 = payfuncs
         self.payfield = payfield
         self.potential_function = potential_function
+        self.scalar_functions = scalar_functions
 
         # --------------------------------------------------------------------
         TR = (1,1) # top right
@@ -546,11 +568,7 @@ class Game22():
         # filled contour player 1
         if PLOT_FILLED_CONTOURS_FIRST_PLAYER:
 
-            # sometimes some error with levels = FILLED_CONTOUR_DENSITY * (max_value_1 - min_value_1)
-            try:
-                payoff_contourf = ax.contourf(Y1, Y2, data_1, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
-            except:
-                payoff_contourf = ax.contourf(Y1, Y2, data_1, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
+            payoff_contourf = ax.contourf(Y1, Y2, data_1, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
 
             if PLOT_FILLED_CONTOURS_FIRST_PLAYER and ADD_COLORBAR:
                 payoff_colorbar = plt.colorbar(payoff_contourf)
@@ -569,19 +587,70 @@ class Game22():
 
 
         # contours potential function
-        if self.is_potential and PLOT_CONTOURS_POTENTIAL_FUNCTION:
+        if self.is_potential and (PLOT_CONTOURS_POTENTIAL_FUNCTION or PLOT_FILLED_CONTOURS_POTENTIAL_FUNCTION):
+
             data_potential = self.potential_function( (Y1, Y2) )
-            UTILITY_LEVELS_POTENTIAL_FUNCTION = np.linspace(self.min_potential_value, self.max_potential_value, CONTOURS_DENSITY + 1)
-            contour_plot_potential = ax.contour(Y1, Y2, data_potential, levels = UTILITY_LEVELS_POTENTIAL_FUNCTION, colors = POTENTIAL_FUNCTION_COLOR, linestyles = 'dashdot', linewidths = 0.6)
-            if DISPLAY_PAYOFF_CONTOURS_VALUES:
-                [txt.set_bbox(dict(facecolor='white', edgecolor='none', pad=0)) for txt in ax.clabel(contour_plot_potential, levels = contour_plot_potential.levels[0::add_countour_label_every] ,  inline=True, fontsize=7, fmt='(%1.1f)' )]
-            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = POTENTIAL_FUNCTION_COLOR, label = 'Potential function',linestyle = 'dashdot', linewidth = 0.6) ] )
+            LEVELS_POTENTIAL_FUNCTION = np.linspace(self.min_potential_value, self.max_potential_value, CONTOURS_DENSITY + 1)
+            # LEVELS_POTENTIAL_FUNCTION = np.linspace(-0.5, 0, CONTOURS_DENSITY + 1)
+
+
+            if PLOT_CONTOURS_POTENTIAL_FUNCTION:
+                contour_plot_potential = ax.contour(Y1, Y2, data_potential, levels = LEVELS_POTENTIAL_FUNCTION, colors = POTENTIAL_FUNCTION_COLOR, linestyles = 'dashdot', linewidths = 0.6)
+
+                
+                if DISPLAY_PAYOFF_CONTOURS_VALUES:
+                    [txt.set_bbox(dict(facecolor='white', edgecolor='none', pad=0)) for txt in ax.clabel(contour_plot_potential, levels = contour_plot_potential.levels[0::add_countour_label_every] ,  inline=True, fontsize=7, fmt='(%1.1f)' )]
+                
+                legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = POTENTIAL_FUNCTION_COLOR, label = 'Potential function',linestyle = 'dashdot', linewidth = 0.6) ] )
+
+
+            if PLOT_FILLED_CONTOURS_POTENTIAL_FUNCTION:
+
+                potential_contourf = ax.contourf(Y1, Y2, data_potential, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
+
+                if PLOT_FILLED_CONTOURS_POTENTIAL_FUNCTION and ADD_COLORBAR:
+                    payoff_colorbar = plt.colorbar(potential_contourf)
+                    payoff_colorbar.set_label('Potential ', labelpad=20, rotation=90,  fontsize = 15) #, va='bottom')
+
+        # contours generic scalar function, lige divergence 
+        if (PLOT_CONTOURS_SCALAR_FUNCTION or PLOT_FILLED_CONTOURS_SCALAR_FUNCTION):
+
+            # provide one color per scalar function
+            #assert len(self.scalar_functions) == len(SCALAR_FUNCTION_COLORS)
+
+            for scalar_function_index, scalar_function in enumerate(self.scalar_functions):
+                data_scalar = scalar_function( (Y1, Y2) )
+                min_scalar_point, min_scalar_value, max_scalar_point, max_scalar_value = utils.optimize_over_square(scalar_function)
+                ## ------------------------------------------------
+                # LEVELS_SCALAR_FUNCTION = np.linspace(min_scalar_value, max_scalar_value, CONTOURS_DENSITY + 1)
+                LEVELS_SCALAR_FUNCTION = [0]
+
+
+                if PLOT_CONTOURS_SCALAR_FUNCTION:
+                    contour_plot_scalar = ax.contour(Y1, Y2, data_scalar, levels = LEVELS_SCALAR_FUNCTION, colors = SCALAR_FUNCTION_COLORS[scalar_function_index], linestyles = 'dashdot', linewidths = 0.6)
+                    
+                    if DISPLAY_PAYOFF_CONTOURS_VALUES:
+                        [txt.set_bbox(dict(facecolor='white', edgecolor='none', pad=0)) for txt in ax.clabel(contour_plot_scalar, levels = contour_plot_scalar.levels[0::add_countour_label_every] ,  inline=True, fontsize=7, fmt='(%1.1f)' )]
+                    
+                    legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = SCALAR_FUNCTION_COLORS[scalar_function_index], label = SCALAR_FUNCTION_LABEL,linestyle = 'dashdot', linewidth = 0.6) ] )
+
+
+                # filled contours; only if only one scalar function is provided
+                if PLOT_FILLED_CONTOURS_SCALAR_FUNCTION and len(self.scalar_functions == 1):
+
+                    scalar_contourf = ax.contourf(Y1, Y2, data_scalar, cmap = 'viridis', alpha = 0.8, levels = FILLED_CONTOUR_DENSITY )
+
+                    if PLOT_FILLED_CONTOURS_SCALAR_FUNCTION and ADD_COLORBAR:
+                        payoff_colorbar = plt.colorbar(scalar_contourf)
+                        payoff_colorbar.set_label(SCALAR_FUNCTION_LABEL, labelpad=20, rotation=90,  fontsize = 15) #, va='bottom')
+
+
 
         return legend_elements
 
         
 
-    def quiver_RD_plot(self, ax):
+    def quiver_plot(self, ax):
 
         # if self.is_potential:
         #     y1, y2 = np.linspace(0, 1, GRID_DENSITY_POTENTIAL), np.linspace(0, 1, GRID_DENSITY_POTENTIAL)
@@ -595,9 +664,8 @@ class Game22():
         # else:
         #     y1, y2 = np.linspace(0, 1, GRID_DENSITY), np.linspace(0, 1, GRID_DENSITY)
 
-
-        y1, y2 = np.linspace(0, 1, GRID_DENSITY), np.linspace(0, 1, GRID_DENSITY)
-        
+        # initial points on evently spaced grid, plus manually chosen points
+        y1, y2 = np.concatenate( [ np.linspace(0, 1, GRID_DENSITY) , MANUAL_POINTS ]  ), np.concatenate( [ np.linspace(0, 1, GRID_DENSITY), MANUAL_POINTS] ) 
 
 
         Y1, Y2 = np.meshgrid(y1, y2)
@@ -621,13 +689,15 @@ class Game22():
         # ax.quiver(Y1, Y2, *RD2, scale=2.5, color = PLAYER_2_COLOR, width=0.005, headlength=5)
 
         # Quiver dual averaging field
-        if QUIVER_RD:
-            ax.quiver(Y1, Y2, *DA, scale = scale, color = REPLICATOR_COLOR, width=0.003, headlength=3)
+        if QUIVER_DA:
+            ax.quiver(Y1, Y2, *DA, scale = scale, color = DUAL_AVERAGING_COLOR, width=0.003, headlength=3)
+
         
         # Quiver payoff field
         if QUIVER_PAYFIELD:
             # can color code here somehow "if payfield on boundary perpendicular to boundary, nash equilibrium" <------------- # anchor-smarter-side-nash
             ax.quiver(Y1, Y2, *PF, scale = scale * scale, color =  PAYFIELD_COLOR, width=0.005, headlength=4)
+
 
         if QUIVER_PAYFIELD and QUIVER_INDIVIDUAL_PAYFIELD:
 
@@ -705,6 +775,11 @@ class Game22():
         else:
             y1_range, y2_range = np.linspace(0, 1, GRID_DENSITY), np.linspace(0, 1, GRID_DENSITY)
 
+
+        ## ------------------------------------------------
+        # add manual initial points
+        y1_range, y2_range = np.concatenate( [ y1_range , MANUAL_POINTS ]  ), np.concatenate( [ y2_range, MANUAL_POINTS] ) 
+
         # Time horizons for ODE trajectories
         t_eu = np.linspace(0, CONTINUOUS_TIME_HORIZON_EUCLIDEAN, ODE_SOLVER_PRECISION)
         t_sha = np.linspace(0, CONTINUOUS_TIME_HORIZON_ENTROPIC, ODE_SOLVER_PRECISION)
@@ -718,9 +793,9 @@ class Game22():
 
         # dual averaging
         if PLOT_CONTINUOUS_DA:
-            ax.plot(*zip(*odeint(self.DA, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
-            [ ax.plot(*zip(*odeint(self.DA, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
-            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = REPLICATOR_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
+            ax.plot(*zip(*odeint(self.DA, start[0], t_sha)), color = DUAL_AVERAGING_COLOR, linewidth = RD_LINEWIDTH)
+            [ ax.plot(*zip(*odeint(self.DA, p, t_sha)), color = DUAL_AVERAGING_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
+            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = DUAL_AVERAGING_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
 
         # Euclidean
         if PLOT_CONTINUOUS_PAYFIELD:
@@ -742,12 +817,28 @@ class Game22():
         if SOLVE_ODE:
             legend_elements.extend(self.ode_plot(ax))
 
-        if QUIVER_PAYFIELD:
-            legend_elements_quiver, GRID_1, GRID_2 = self.quiver_RD_plot(ax)
+        if MASTER_QUIVER_PLOT:
+            legend_elements_quiver, GRID_1, GRID_2 = self.quiver_plot(ax)
             legend_elements.extend(legend_elements_quiver)
 
         if PLOT_POLAR_CONES:
             self.plot_polar_cone(ax)
+
+        if INCLUDE_AXES_LABELS:
+            ax.set_xlabel(f"Player 1's strategy", fontsize=AXES_LABEL_FONT_SIZE)
+            ax.set_ylabel(f"Player 2's strategy", fontsize=AXES_LABEL_FONT_SIZE)
+
+
+        if INCLUDE_AXES_TICKS:
+            plt.xticks(fontsize=AXES_TICKS_FONT_SIZE)
+            plt.yticks(fontsize=AXES_TICKS_FONT_SIZE)
+        else:
+            plt.xticks([])
+            plt.yticks([])
+
+
+
+
 
 
         
@@ -789,8 +880,8 @@ class Game22():
 
             try:
                 ax.scatter( *self.zero_of_payfield, color = PAYFIELD_COLOR, zorder=10, s = 60)
-
                 # zorder is like z-index in css, higher plots this point on top of other graphical elements. Need high else the contourfill and the extra DA cover it
+
                 legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = PAYFIELD_COLOR, label = ZERO_PF_LABEL, linestyle = '', marker = 'o' )] )
 
             except:
@@ -843,18 +934,39 @@ class Game22():
 # # --------------------------------------------------------
 # # Matching pennies
 # # --------------------------------------------------------
-def u1( vas ):
+def u1_MP( vas ):
     x1, x2 = vas
     return 4 * x1 * x2 - 2 * (x1 + x2) + 1
 
-def u2( vas ):
+def u2_MP( vas ):
     x1, x2 = vas
     return -(4 * x1 * x2 - 2 * (x1 + x2) + 1)
 
-def v ( vas ):
+def v_MP ( vas ):
     x1, x2 = vas
     return np.array( [ 4 * x2 - 2, 2 - 4 * x1 ] )
-# # # --------------------------------------------------------
+# # --------------------------------------------------------
+
+# # --------------------------------------------------------
+# # Affine Matching pennies
+# # --------------------------------------------------------
+
+aff_rescaling = 5
+aff_shift = 2
+
+def u1_MP_aff( vas ):
+    x1, x2 = vas
+    return u1_MP( vas )
+
+def u2_MP_aff( vas ):
+    x1, x2 = vas
+    return aff_rescaling * u2_MP( vas ) + aff_shift
+
+def v_MP_aff ( vas ):
+    x1, x2 = vas
+    v1, v2 = v_MP ( vas )
+    return np.array( [v1, aff_rescaling * v2] )
+# # --------------------------------------------------------
 
 # # # --------------------------------------------------------
 # # # strict NE
@@ -917,7 +1029,7 @@ interior iff, for i different from j, i, j in {1,2}
 """
 # --------------------------------------------------------
 
-c1 = 0.05
+c1 = 0.1
 # c2 = 0.15
 # c2 = 2*c1 + 2
 c2 = c1
@@ -931,29 +1043,203 @@ if (2 * c1 - 1 < c2 < 2 * c1 + 2) and (2 * c2 - 1 < c1 < 2 * c2 + 2):
 else:
     info_eq = 'No interior equilibrium'
 
+# ------------------------------------------------
+def u1_CO( vas ):
+    x1, x2 = vas
+    return x1 * (1 - x1 - x2) - c1 * x1
+
+def u2_CO( vas ):
+    x1, x2 = vas
+    return x2 * (1 - x1 - x2) - c2 * x2
+
+
+def v_CO( vas ):
+    x1, x2 = vas
+    return np.array( [ 1 - c1 - 2 * x1 - x2, 1 - c2 - 2 * x2 - x1] )
+
+def pot( vas ):
+    x1, x2 = vas
+    return x1 * (1 - c1) + x2 * (1 - c2) - x1**2 - x2**2 - x1*x2
+
+# Riemannian divergence
+def codifferential(vas): 
+    x1, x2 = vas
+    return 4 * x1**2 + 4 * x2**2 + 2*x1*x2 + (x1+x2) * ( c - 4.5 ) + 1 - c
+
+# def euclidean_divergence(vas):
+#     x, y = vas
+#     return 2*c*x + 2*c*y - 2*c + 6*x**2 + 4*x*y - 7*x + 6*y**2 - 7*y + 2
+# --------------------------------------------------------
+
+## ------------------------------------------------
+## Potential, orthogonal to matching pennies
+# ------------------------------------------------
+
 # def u1( vas ):
 #     x1, x2 = vas
-#     return x1 * (1 - x1 - x2) - c1 * x1
+#     return x1 * (1 - x1)
 
 # def u2( vas ):
 #     x1, x2 = vas
-#     return x2 * (1 - x1 - x2) - c2 * x2
+#     return x2 * (1 - x2)
 
 
 # def v( vas ):
 #     x1, x2 = vas
-#     return np.array( [ 1 - c1 - 2 * x1 - x2, 1 - c2 - 2 * x2 - x1] )
+#     return np.array( [ 1 - 2*x1, 1 - 2*x2 ] )
 
 # def pot( vas ):
 #     x1, x2 = vas
-#     return x1 * (1 - c1) + x2 * (1 - c2) - x1**2 - x2**2 - x1*x2
+#     return - ( ( x1 - 1/2 )**2 + ( x2 - 1/2 )**2  )
 # --------------------------------------------------------
 
 
+## ------------------------------------------------
+## Combination of MP  + Potential orthogonal to MP
+# ------------------------------------------------
 
-u = [u1, u2]
-# G = Game22(u, v, 'sha', game_name = f'Cournot - {info_eq}', game_type = 'potential', potential_function = pot)
-G = Game22(u, v, 'sha', game_name = f'test', game_type = '')
+# potential_parameter = 0.5
+
+# def u1( vas ):
+#     x1, x2 = vas
+#     return potential_parameter * x1 * ( 1 - x1 ) + (1 - potential_parameter) * x1 * (2*x2 - 1)
+
+# def u2( vas ):
+#     x1, x2 = vas
+#     return potential_parameter * x2 * ( 1 - x2 ) + (1 - potential_parameter) * x2 * (1 - 2*x1)
+
+
+# def v( vas ):
+#     x1, x2 = vas
+#     return np.array( [ potential_parameter * (1 - 2*x1) + (1 - potential_parameter) * (2*x2 - 1), potential_parameter * (1 - 2*x2) + (1 - potential_parameter) * (1 - 2*x1) ] )
+
+# def pot( vas ):
+#     x1, x2 = vas
+#     return - ( ( x1 - 1/2 )**2 + ( x2 - 1/2 )**2  )
+# --------------------------------------------------------
+
+## ------------------------------------------------
+## Combination of MP  + Cournot
+# ------------------------------------------------
+
+# potential_parameter = 1
+
+# def u1( vas ):
+#     return potential_parameter * u1_CO(vas) + (1 - potential_parameter) * u1_MP(vas)
+
+# def u2( vas ):
+#     return potential_parameter * u2_CO(vas) + (1 - potential_parameter) * u2_MP(vas)
+
+
+# def v( vas ):
+#     x1, x2 = vas
+#     return potential_parameter * v_CO(vas) + (1 - potential_parameter) * v_MP(vas)
+# --------------------------------------------------------
+
+
+## ------------------------------------------------
+## weak MVI
+## ------------------------------------------------
+
+
+# def u1( vas ):
+#     x0_1, x1_1 = vas
+#     return 3*x0_1*x1_1 - 2*x0_1 - x1_1 + 1
+
+# def u2( vas ):
+#     x0_1, x1_1 = vas
+#     return x0_1*x1_1 - x0_1 + x1_1
+
+
+# def v( vas ):
+#     x0_1, x1_1 = vas
+#     return np.array( [3*x1_1 - 2, x0_1 + 1])
+
+# def pot( vas ):
+#     x0, x1 = vas
+#     return 2*(x0 - 1)*(x1 - 1)
+
+
+## ------------------------------------------------
+# Zero Euclidean divergence
+
+
+# def u1( vas ):
+#     x, y = vas
+#     return x*y
+
+# def u2( vas ):
+#     x, y = vas
+#     return x*y
+
+
+# def v( vas ):
+#     x, y = vas
+#     # dim = len(x)
+#     return np.array( [y,x])
+
+# def pot( vas ):
+#     x, y = vas
+#     return x*y
+
+
+## ------------------------------------------------
+# Entry Deterrence
+
+
+# def u1( vas ):
+#     x, y = vas
+#     return -2*x*y + x + 2*y
+
+# def u2( vas ):
+#     x, y = vas
+#     return -2*x*y + 3*x + 2*y
+
+
+# def v( vas ):
+#     x, y = vas
+
+#     return np.array( [ -2*y + 1, -2*x + 2 ])
+
+
+
+
+
+
+
+
+## ------------------------------------------------
+
+# def u1( vas ):
+#     x, y = vas
+#     return x
+
+# def u2( vas ):
+#     x, y = vas
+#     return y
+
+
+# def v( vas ):
+#     x, y = vas
+#     ones = np.ones_like(x)
+#     return np.array([ones, ones])
+
+# def pot( vas ):
+#     x, y = vas
+#     return x + y
+
+
+
+## ------------------------------------------------
+
+
+
+u = [u1_MP_aff, u2_MP_aff]
+v = v_MP_aff
+G = Game22(u, v, 'sha', game_name = f'MP affine', game_type = '', potential_function = 0, scalar_functions = [])
+# G = Game22(u, v, 'sha', game_name = f'mix', game_type = '', potential_function = 0, scalar_functions = [])
+# G = Game22(u, v, 'sha', game_name = f'Entry Deterrence', game_type = '', potential_function = 0, scalar_functions = [])
+
 
 
 
@@ -998,17 +1284,38 @@ G.full_plot(axs)
 # --------------------------------------------------------
 ## Save methods
 # --------------------------------------------------------
+SAVE = 0
+if SAVE:
+    # --------------------------------------------------------
+    # In Gameflow folder, creating directories structure with date
+    # --------------------------------------------------------
+    root_directory = './Results/'
+    game_directory = f'{root_directory}/{G.game_name}'
+    current_directory = f'{game_directory}/{time.time()}'
 
-root_directory = './Results/'
 
-game_directory = f'{root_directory}/{G.game_name}'
-current_directory = f'{game_directory}/{time.time()}'
 
-# utils.make_folder(current_directory)
+    # --------------------------------------------------------
+    # Project-specific
+    # --------------------------------------------------------
+    # current_directory = '/Users/davidelegacci/RESEARCH/phd/phd-research/phd-collab-papers/4-IncompressibleGames/MOR/Figures'
+    # --------------------------------------------------------
+    # Writing methods
+    # --------------------------------------------------------
+    utils.make_folder(current_directory)
+    plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight', pad_inches = 0)
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', inspect.getsource(G.u1))
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', inspect.getsource(G.u2))
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', inspect.getsource(G.payfield))
+    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
 
-# plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
-# utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', u)
-# utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
+    # Save this self file for config parameters
+    with open(__file__, 'r') as source_file:
+        content = source_file.read()
+
+    # Write the content to config.py
+    with open(f'{current_directory}/config.py', 'w') as target_file:
+        target_file.write(content)
 
 
 #####################################################
@@ -1016,7 +1323,7 @@ current_directory = f'{game_directory}/{time.time()}'
 
 
 
-print(G.return_NE_info())
+# print(G.return_NE_info())
 
 plt.show()
 
