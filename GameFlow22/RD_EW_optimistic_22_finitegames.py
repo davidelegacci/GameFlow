@@ -30,8 +30,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from scipy.integrate import odeint
-from aspera import utils
+import aspera.utils
 import time
+
+import random
+import gamelab.finitegames as nfg
+import gamelab.symplecticFTRL
+import gamelab.choice
+
+
 
 # ------------------------------------------------
 ## PARAMETERS
@@ -54,7 +61,9 @@ PLAYER_1_COLOR = 'black'
 PLAYER_2_COLOR = 'black'
 
 REPLICATOR_COLOR = 'black'
-PAYFIELD_COLOR = 'white'
+PULLED_REPLICATOR_COLOR = 'gray'
+SYMPLECTIC_REPLICATOR_COLOR = 'crimson'
+PAYFIELD_COLOR = 'crimson'
 
 VANILLA_COLOR = 'purple'
 EXTRA_COLOR = 'red'
@@ -74,6 +83,8 @@ INITIAL_POINT_COLOR = 'purple'
 ## Labels
 # ------------------------------------------------
 CONTINUOUS_TIME_LABEL = 'FTRL-D'
+PULLED_CONTINUOUS_TIME_LABEL = 'Pulled FTRL-D'
+SYMPLECTIC_CONTINUOUS_TIME_LABEL = 'Symplectic FTRL-D'
 EXTRAPOLATION_LABEL = 'FTRL+'
 ADA_EXTRAPOLATION_LABEL = 'AdaFTRL+'
 VANILLA_LABEL = 'vanilla FTRL discrete'
@@ -128,8 +139,19 @@ PLOT_SEGMENT_PERPENDICULAR_HARMONIC_CENTER = 0
 # ------------------------------------------------
 ## Continuous time dynamics
 # ------------------------------------------------
-SOLVE_ODE = 0
+SOLVE_ODE = 1
 PLOT_CONTINUOUS_RD = 1
+
+PLOT_CONTINUOUS_SYMPLECTIC_RD = 1
+SYMPLECTIC_RD_PARAMETER = -0.1 # If 0, vanilla FTRL
+
+PLOT_CONTINUOUS_PULLED_RD = 0 # Vanilla FTRL (no symplectic nor optimistic correction), but running on unsharped pull-back of V rather than sharped. Geometrically less consistent, let's see what happens. cf SymplecticFTRL22
+"""
+The ""pulled" version is geometrically not consistent, but not big deal; qualitatively, it behaves like the standard FTRL (in vanilla or symplectic or optimistic versions)
+As a rule of thumb, it oscillates less and moves much slower than the standard FTRL version.
+This means that in potential scenarios it converges much slower; in harmonic scenarios, it rotates much slower (vanilla) and converges slower but with less oscillation (optimistic - symplectic)
+"""
+
 INDEX_1 = 1 #4 # choose orbit index, or plot them all
 INDEX_2 = 3 # choose orbit index, or plot them all
 
@@ -140,11 +162,12 @@ ED_LINEWIDTH = 0.7
 
 ODE_SOLVER_PRECISION = 1000 # high = more precise
 
-CONTINUOUS_TIME_HORIZON_ENTROPIC = 20 # Max time for dynamical system ODE solver, replicator dynamics
+CONTINUOUS_TIME_HORIZON_ENTROPIC = 10 # Max time for dynamical system ODE solver, replicator dynamics
 CONTINUOUS_TIME_HORIZON_EUCLIDEAN = 0.1 # Max time for dynamical system ODE solver, Euclidean dynamics. Small bc usually hits boundary fast.
 
 # ------------------------------------------------
 ## Discrete time dynamics
+## ------------------------------------------------
 # At the moment discrete plotting routine is inside quiver function; if all quiver boolean are false, discrete routine will not trigger. 
 # #TO-DO separate plotting routine
 # ------------------------------------------------
@@ -162,19 +185,26 @@ VANILLA_LABEL += f', {FEEDBACK_TYPE} feedback'
 # entropic
 PLOT_ENTROPIC_VANILLA_FTRL = 0
 
-PLOT_EXTRA_FTRL = 1
+PLOT_EXTRA_FTRL = 0
+EXTRA_FTRL_LINEWIDTH = 1.5
 
 PLOT_ADA_EXTRA_FTRL = 1
-ADA_FTRL_COEF = np.array([1, 1]) # signal coefficient in [0,1], 0 = optimistic, 1 = extra-gradient. One per player, can be different
+ADA_FTRL_COEF = np.array([0, 0]) # signal coefficient in [0,1], 0 = optimistic, 1 = extra-gradient. One per player, can be different
 
+## ------------------------------------------------
+## CONSTANT STEP SIZES
+## ------------------------------------------------
 EXTRA_FTRL_STEP_SIZE = 0.3
 VANILLA_FTRL_STEPSIZE = 0.05
-EXTRA_FTRL_LINEWIDTH = 1.5
+## ------------------------------------------------
+
+
 
 # euclidean; not sure it's correct ! careful !
 PLOT_EUCLIDEAN_VANILLA_FTRL = 0
 
-TIMESTEPS_EXTRA_FTRL = 25000
+# TIMESTEPS_EXTRA_FTRL = 25000
+TIMESTEPS_EXTRA_FTRL = 1000
 TIMESTEPS_VANILLA_FTRL = 1000
 
 
@@ -367,6 +397,19 @@ class Game22():
         r1, r2 = var
         return [ self.RD1(r1, r2)[0], self.RD2(r1, r2)[1]  ]
 
+    ## ------------------------------------------------
+    ## Geometrically not consistent, but see what happens -- pull V and not sharp it
+    ## ------------------------------------------------
+    def pulled_RD1(self, r1, r2):
+        return [self.sha_inv_1(r1, r2) * self.sha_inv_1(r1, r2) * self.v1(r1, r2), 0]
+
+    def pulled_RD2(self, r1, r2):
+        return [0, self.sha_inv_2(r1, r2) * self.sha_inv_2(r1, r2) * self.v2(r1, r2)]
+
+    def pulled_RD(self, var, t):
+        r1, r2 = var
+        return [ self.pulled_RD1(r1, r2)[0], self.pulled_RD2(r1, r2)[1]  ]
+
     # --------------------------------------------------------------------
     ## Reduced euclidean dynamics continuous time # <------------------------------------------------------------- #TO-DO-EUCLIDEAN-CONTINUOUS-ANCHOR ------------------------------------------------------------------
     # --------------------------------------------------------------------
@@ -450,7 +493,8 @@ class Game22():
 
         "y_1 = np.array([a, b])"
 
-        mirror = [self.mirrori_eu, self.mirrori_ent] # different players can use different regularizers
+        # mirror = [self.mirrori_eu, self.mirrori_ent] # different players can use different regularizers ## <--------------------------------------------------------- # SELECT REGULARIZERS
+        mirror = [self.mirrori_ent, self.mirrori_ent] # different players can use different regularizers ## <--------------------------------------------------------- # SELECT REGULARIZERS
         
         # x_1 = self.mirrori(eta_1 * y_1) # all players using same mirror
         x_1 = np.array([ mirror[i]( y_1[i] * eta_1[i] ) for i in range(2) ]) # players using different regularizers
@@ -558,7 +602,7 @@ class Game22():
 
 
             trajectory.append(x)
-            # step = step / t                  # update step size
+            
 
         x1 = [x[0] for x in trajectory]
         x2 = [x[1] for x in trajectory]
@@ -617,6 +661,24 @@ class Game22():
         x2 = [x[2] for x in trajectory]
 
         return x1, x2
+
+    ## ------------------------------------------------
+    ## 2026-02-16 Plug in symplectic FTRL routine
+    ## ------------------------------------------------
+    def symplectic_ftrl(self, primal_initial_points):
+
+        # redundant; re-initialize game instance because this file was done with game class developed before the nfg module, and symplectic relies on nfg module
+        skeleton = [2, 2]
+        primal_letter, dual_letter, quot_letter = 'x', 'y' , 'z'
+
+        NFG = nfg.NFG(skeleton = [2,2] , strat_format = 'numeric', primal_letter = primal_letter, dual_letter = dual_letter, name = self.game_name, payoff_tensors =  nfg.Utils.u_flat_to_tensor(self.payoff, skeleton))
+        quotlogit = gamelab.choice.QuotientMultiLogit(primal_letter, dual_letter, skeleton, quot_letter)
+        eff_ZSFTRL = gamelab.symplecticFTRL.ZSFTRL(NFG.map_eff_quotpayfield, quotlogit.eff_Q, quotlogit.eff_Q.codomain.vars, quotlogit.eff_Q.domain.vars, NFG.name)
+
+        initial_eff_quot_points = [eff_ZSFTRL.map_choice.inverse( *p )[0] for p in primal_initial_points]
+
+        return eff_ZSFTRL, initial_eff_quot_points
+        
 
     # ------------------------------------------------
     ## NE finder
@@ -770,6 +832,8 @@ class Game22():
 
     def quiver_RD_plot(self, ax):
 
+        legend_elements = [ ]
+
         if self.is_potential:
             y1_range, y2_range = np.linspace(0, 1, GRID_DENSITY_POTENTIAL), np.linspace(0, 1, GRID_DENSITY_POTENTIAL)
 
@@ -826,13 +890,13 @@ class Game22():
 
 
 
-        # legend_elements = [ ]
+        
 
         #if self.is_potential:
         # payoff_field_label = 'Payoff field'
         #payoff_field_label = 'Payoff'
         # legend_elements = [ ]
-        legend_elements =  [matplotlib.lines.Line2D([0], [0], color= PAYFIELD_COLOR, label = PAYOFF_FIELD_LABEL)] 
+            legend_elements =  [matplotlib.lines.Line2D([0], [0], color= PAYFIELD_COLOR, label = PAYOFF_FIELD_LABEL)] 
 
 
         # extra gradient entropic ftrl
@@ -853,7 +917,7 @@ class Game22():
         if PLOT_ADA_EXTRA_FTRL:
 
             # pick an initial point
-            initial_point = np.array([ y1[1], y2[3] ])
+            initial_point = np.array([ y1[-1], y2[-2] ])
             print(f'Initial point of extra ftrl: {initial_point}')
             plt.scatter(*initial_point, color = INITIAL_POINT_COLOR, s = 20)
             ADA_EXTRA_FTRL = self.adaFTRLplus(initial_point, TIMESTEPS_EXTRA_FTRL, eta_1 = np.ones(2), v_half = np.zeros(2), coef = ADA_FTRL_COEF  )
@@ -865,9 +929,9 @@ class Game22():
 
         # vanilla entropic ftrl
         if PLOT_ENTROPIC_VANILLA_FTRL:
-            # initial_points = [np.array([ y1[1], y2[3] ])]
-            #initial_points = [np.random.rand(2)]
-            initial_points = [ [a,b] for a in y1[1:-1] for b in y2[1:-1] ]
+            initial_points = [np.array([ y1[1], y2[3] ])]
+            # initial_points = [np.random.rand(2)]
+            # initial_points = [ [a,b] for a in y1[1:-1] for b in y2[1:-1] ]
 
             # print(f'Initial point of entropic vanilla ftrl: {initial_point}')
             plt.scatter(*initial_points[0], color = INITIAL_POINT_COLOR, s = 20)
@@ -895,10 +959,10 @@ class Game22():
             plt.plot(*EUCLIDEAN_MIRROR_DESCENT, color = EUCLIDEAN_COLOR,  linewidth = 0.7, label = VANILLA_LABEL + EUCLIDEAN_LABEL)
             legend_elements.extend( [matplotlib.lines.Line2D([0], [0], color = EUCLIDEAN_COLOR, label = VANILLA_LABEL + EUCLIDEAN_LABEL )]  )
 
-        return legend_elements, y1, y2
+        return legend_elements, y1, y2,  list([ ADA_EXTRA_FTRL[0][0], ADA_EXTRA_FTRL[1][0] ])
 
 
-    def ode_plot(self, ax):
+    def ode_plot(self, ax, ada_initial_point):
 
         legend_elements = []
 
@@ -920,18 +984,41 @@ class Game22():
         t_eu = np.linspace(0, CONTINUOUS_TIME_HORIZON_EUCLIDEAN, ODE_SOLVER_PRECISION)
         t_sha = np.linspace(0, CONTINUOUS_TIME_HORIZON_ENTROPIC, ODE_SOLVER_PRECISION)
 
-        # Starting points for ODE trajectories
+        # Starting points for ODE trajectories (primal, notation y is unhappy)
         y1 = y1_range
         y2 = y2_range
-        start = [ [a,b] for a in y1 for b in y2 ]
+        start = [ [a,b] for a in y1[1:-1] for b in y2[1:-1] ]
 
         # start = [ [y1[ INDEX_1 ],y2[INDEX_2]]  ]
 
         # Replicator
         if PLOT_CONTINUOUS_RD:
+            # [ax.scatter(*p,  color = 'yellow') for p in start] # scatter initial points 
             ax.plot(*zip(*odeint(self.RD, start[0], t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
             [ ax.plot(*zip(*odeint(self.RD, p, t_sha)), color = REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
             legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = REPLICATOR_COLOR, label = CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
+
+        # Replicator symplectic
+        if PLOT_CONTINUOUS_SYMPLECTIC_RD:
+
+            primal_initial_points = start[0:3]
+
+            if PLOT_ADA_EXTRA_FTRL:
+                primal_initial_points.append(ada_initial_point)
+      
+
+            ZSFTRL, initial_quot_points = self.symplectic_ftrl( primal_initial_points = primal_initial_points  )
+
+            quot_points = [ odeint(ZSFTRL.geom_sftrl_dyn, z, t_sha, args = ( SYMPLECTIC_RD_PARAMETER, ) ) for z in initial_quot_points ]
+            primal_points = [ [ ZSFTRL.choice(*z) for z in _ ] for _ in quot_points ]
+            [ ax.plot( *np.array(points).T, color = SYMPLECTIC_REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for points in primal_points ]
+            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = SYMPLECTIC_REPLICATOR_COLOR, label = SYMPLECTIC_CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
+
+        # Replicator pulled
+        if PLOT_CONTINUOUS_PULLED_RD:
+            ax.plot(*zip(*odeint(self.pulled_RD, start[0], t_sha)), color = PULLED_REPLICATOR_COLOR, linewidth = RD_LINEWIDTH)
+            [ ax.plot(*zip(*odeint(self.pulled_RD, p, t_sha)), color = PULLED_REPLICATOR_COLOR, linewidth = RD_LINEWIDTH) for p in start[1:] ]
+            legend_elements.extend( [ matplotlib.lines.Line2D([0], [0], color = PULLED_REPLICATOR_COLOR, label = PULLED_CONTINUOUS_TIME_LABEL + ENTROPIC_LABEL ) ])
 
         # Euclidean
         if PLOT_CONTINUOUS_EUCLIDEAN:
@@ -956,12 +1043,15 @@ class Game22():
         if PLOT_CONTOURS:
             legend_elements.extend(self.contour_plot(ax))
 
-        if SOLVE_ODE:
-            legend_elements.extend(self.ode_plot(ax))
 
+
+        ADA_INITIAL_POINT = [ ]
         if QUIVER_PAYFIELD or QUIVER_RD:
-            legend_elements_quiver, GRID_1, GRID_2 = self.quiver_RD_plot(ax)
+            legend_elements_quiver, GRID_1, GRID_2, ADA_INITIAL_POINT = self.quiver_RD_plot(ax)
             legend_elements.extend(legend_elements_quiver)
+
+        if SOLVE_ODE:
+            legend_elements.extend(self.ode_plot(ax, ada_initial_point = ADA_INITIAL_POINT ))
 
 
         if INCLUDE_AXES_LABELS:
@@ -1289,7 +1379,7 @@ class Game22():
 # payoff = [-1, -4, -3, -1, 1, 2, 2, -2] 
 
 # mathing pennies
-# payoff = [3, -3, -3, 3, -3, 3, 3, -3]
+payoff = [3, -3, -3, 3, -3, 3, 3, -3]
 
 # prisoner's dilemma
 # payoff = [2, 0, 3, 1, 2, 3, 0, 1]
@@ -1454,14 +1544,16 @@ pot_BB = 0
 ## Game instance
 # --------------------------------------------------------
 # assedio
-payoff = [-3, 2, 0, 0, 1, -4, -1, 0]
-G = Game22(payoff, 'sha', game_type = '',  game_name = 'AdaExtraFTRL_harmonic', pure_potential_function = 0, strategies_labels = [ ['A', 'N'], ['D', 'N'] ] )
+# payoff = [-3, 2, 0, 0, 1, -4, -1, 0]
+# G = Game22(payoff, 'sha', game_type = '',  game_name = 'AdaExtraFTRL', pure_potential_function = 0, strategies_labels = [ ['A', 'N'], ['D', 'N'] ] )
 
 
 
 # boundary garmonic
 # u = [9, -7, -1, -2, -2, -2, 2, -3]
 # payoff = [-6, 9, 4, 4, 2, 2, -4, 1]
+# G = Game22(payoff, 'sha', game_type = '',  game_name = 'AdaExtraFTRL', pure_potential_function = 0)
+
 
 
 # Potential with pure non strict NE 2x2
@@ -1473,13 +1565,20 @@ G = Game22(payoff, 'sha', game_type = '',  game_name = 'AdaExtraFTRL_harmonic', 
 
 
 ## Entry deterrence
-#u =  [0, 2, 1, 1, 0, 2, 3, 3]
-#G = Game22(u, 'sha', game_type = '',  game_name = 'Entry Deterrence', strategies_labels = [ ['enter', 'out'], ['fight', 'yield'] ] )
+# u =  [0, 2, 1, 1, 0, 2, 3, 3]
+# G = Game22(u, 'sha', game_type = '',  game_name = 'Entry Deterrence', strategies_labels = [ ['enter', 'out'], ['fight', 'yield'] ] )
 
 
 ## 2x2 effectife Jv skew
 # u = [-2, -8, 3, -8, 5, 9, 1, 10]
 # G = Game22(u, 'sha', game_type = '',  game_name = 'Eff JV skew', strategies_labels = [ ['A', 'B'], ['C', 'D'] ] )
+
+
+
+## ------------------------------------------------
+## Generic game instance
+## ------------------------------------------------
+G = Game22(payoff, 'sha', game_type = '',  game_name = 'Matching Pennies: Vanilla FTRL-D, Symplectic FTRL-D, and AdaFTRL+', pure_potential_function = 0, strategies_labels = [ ['L', 'R'], ['B', 'T'] ] ) 
 
 
 # --------------------------------------------------------
@@ -1522,7 +1621,7 @@ G.full_plot(axs)
 # --------------------------------------------------------
 ## Save methods
 # --------------------------------------------------------
-SAVE = 0
+SAVE = 1
 
 if SAVE:
     root = './Results/'
@@ -1530,10 +1629,10 @@ if SAVE:
     game_directory = f'{root}/{time.strftime("%Y-%m-%d")}-{G.game_name}'
     current_directory = f'{game_directory}/{time.strftime("%Y-%m-%d-%H-%M-%S")}'
 
-    utils.make_folder(current_directory)
+    aspera.utils.make_folder(current_directory)
     plt.savefig(f'{current_directory}/{G.game_name}.pdf', bbox_inches='tight')#, pad_inches = 0)
-    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.payoff)
-    utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
+    aspera.utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.payoff)
+    aspera.utils.write_to_txt(f'{current_directory}/{G.game_name}.txt', G.return_NE_info())
     # Save this self file for config parameters
     with open(__file__, 'r') as source_file:
         content = source_file.read()
